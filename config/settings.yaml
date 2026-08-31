@@ -1,0 +1,61 @@
+# AI Assistant Configuration
+# Copy this file to settings.yaml and fill in your API keys
+
+# AI Provider Settings
+ai:
+  default_provider: "openai"  # openai, anthropic, ollama, custom
+  default_model: "gpt-4o"
+  max_tokens: 4096
+  temperature: 0.7
+
+  providers:
+    openai:
+      api_key: ""  # or set OPENAI_API_KEY env var
+      base_url: null  # null = default OpenAI endpoint
+    anthropic:
+      api_key: ""  # or set ANTHROPIC_API_KEY env var
+    ollama:
+      base_url: "http://localhost:11434"
+      model: "llama3.1"
+    custom:
+      base_url: ""  # Any OpenAI-compatible endpoint
+      api_key: ""
+      model: ""
+
+# Chat Reader Settings
+chat_reader:
+  wechat:
+    enabled: false
+    poll_interval: 5  # seconds
+    auto_summary: true
+    summary_batch_size: 20
+    summary_interval: 300  # seconds
+  qq:
+    enabled: false
+    napcat_url: "http://127.0.0.1:3000"
+    poll_interval: 5
+    auto_summary: true
+
+# Search Settings
+search:
+  provider: "duckduckgo"  # duckduckgo (free, no API key)
+  max_results: 5
+  content_extraction: true  # extract full text from results
+
+# UI Settings
+ui:
+  theme: "dark"  # dark, light, auto
+  language: "zh"  # zh, en
+  floating_ball:
+    enabled: true
+    size: 48
+    opacity: 0.85
+    always_on_top: true
+  main_window:
+    width: 900
+    height: 650
+
+# Storage
+storage:
+  db_path: "data/assistant.db"
+  backup_enabled: false

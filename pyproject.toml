@@ -1,0 +1,41 @@
+[project]
+name = "ai-assistant"
+version = "0.1.0"
+description = "Personal AI Assistant - Windows Desktop"
+requires-python = ">=3.10"
+dependencies = [
+    # UI
+    "PySide6>=6.6",
+    "qasync>=0.27",
+    "pyqtdarktheme>=2.1",
+    "markdown>=3.5",
+
+    # AI
+    "litellm>=1.40",
+
+    # Chat Readers
+    "wechatauto-replica>=1.2",
+    "aiohttp>=3.9",
+
+    # Document Processing
+    "PyMuPDF>=1.24",
+    "python-docx>=1.1",
+    "trafilatura>=1.8",
+
+    # Search
+    "duckduckgo-search>=6.0",
+
+    # Storage
+    "aiosqlite>=0.20",
+
+    # Utils
+    "pyyaml>=6.0",
+    "pyperclip>=1.8",
+]
+
+[project.scripts]
+ai-assistant = "src.main:main"
+
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.backends._legacy:_Backend"

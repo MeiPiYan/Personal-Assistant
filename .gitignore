@@ -1,0 +1,42 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+*.egg
+dist/
+build/
+.eggs/
+
+# Virtual environment
+venv/
+.venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Project specific
+data/
+*.db
+*.sqlite
+*.log
+
+# wechatauto cache
+.wechatauto/
+
+# Config with secrets
+config/settings.yaml
+!config/settings.yaml
+
+# Test outputs
+test_output/
