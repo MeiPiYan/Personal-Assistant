@@ -1,3 +1,5 @@
+"""Streaming text widget for AI responses."""
+
 from __future__ import annotations
 
 from PySide6.QtCore import Qt
@@ -10,15 +12,15 @@ class StreamingTextWidget(QTextEdit):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setReadOnly(True)
-        self.setMaximumHeight(200)
+        self.setMaximumHeight(180)
+        self.setFrameShape(QTextEdit.NoFrame)
         self.setPlaceholderText("AI 正在思考...")
         self.setStyleSheet("""
             QTextEdit {
-                background-color: #1e1e2e;
-                color: #cdd6f4;
-                border: 1px solid #45475a;
-                border-radius: 8px;
-                padding: 8px 12px;
+                background-color: #1a1a2e;
+                color: #d0d0e0;
+                border-top: 1px solid #2a2a3e;
+                padding: 12px 20px;
                 font-size: 14px;
             }
         """)

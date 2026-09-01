@@ -1,12 +1,13 @@
+"""Chat reader panel - live message monitoring from WeChat/QQ."""
+
 from __future__ import annotations
 
 from PySide6.QtCore import Qt, Slot
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel,
     QPushButton, QTextEdit, QScrollArea, QCheckBox, QComboBox,
-    QLineEdit, QListWidget, QListWidgetItem, QSplitter,
+    QSplitter, QFrame,
 )
-from PySide6.QtGui import QFont
 
 from .widgets.message_bubble import MessageBubble
 from ..chat_reader.wechat_reader import WeChatReader
@@ -14,65 +15,71 @@ from ..chat_reader.models import ChatMessage
 
 
 class ChatReaderPanel(QWidget):
-    """Live chat message stream from WeChat/QQ."""
-
     def __init__(self, app=None, parent=None):
         super().__init__(parent)
         self.app = app
         self._wechat_reader: WeChatReader | None = None
         self._qq_reader = None
         self._selected_sessions: list[str] = []
+        self._monitoring = False
         self._setup_ui()
 
     def _setup_ui(self) -> None:
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(12, 12, 12, 12)
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(12)
 
         header = QLabel("消息监控")
-        header.setStyleSheet("font-size: 18px; font-weight: bold; padding: 8px 0;")
+        header.setStyleSheet("font-size: 18px; font-weight: bold; padding: 0 0 4px 0;")
         layout.addWidget(header)
 
-        # Platform controls
-        ctrl_layout = QHBoxLayout()
+        # Controls row
+        ctrl_row = QHBoxLayout()
+        ctrl_row.setSpacing(8)
+
         self.wechat_cb = QCheckBox("微信")
         self.wechat_cb.stateChanged.connect(self._on_wechat_toggled)
-        ctrl_layout.addWidget(self.wechat_cb)
+        ctrl_row.addWidget(self.wechat_cb)
 
         self.qq_cb = QCheckBox("QQ")
-        ctrl_layout.addWidget(self.qq_cb)
+        ctrl_row.addWidget(self.qq_cb)
 
-        ctrl_layout.addStretch()
+        ctrl_row.addStretch()
 
-        self.refresh_btn = QPushButton("刷新会话")
+        self.session_combo = QComboBox()
+        self.session_combo.setMinimumWidth(180)
+        self.session_combo.currentIndexChanged.connect(self._on_session_selected)
+        ctrl_row.addWidget(self.session_combo)
+
+        self.refresh_btn = QPushButton("刷新")
+        self.refresh_btn.setObjectName("secondaryBtn")
+        self.refresh_btn.setFixedWidth(56)
         self.refresh_btn.clicked.connect(self._on_refresh_sessions)
-        ctrl_layout.addWidget(self.refresh_btn)
+        ctrl_row.addWidget(self.refresh_btn)
 
         self.start_btn = QPushButton("开始监控")
-        self.start_btn.clicked.connect(self._on_toggle_monitoring)
         self.start_btn.setEnabled(False)
-        ctrl_layout.addWidget(self.start_btn)
-        layout.addLayout(ctrl_layout)
+        self.start_btn.clicked.connect(self._on_toggle_monitoring)
+        ctrl_row.addWidget(self.start_btn)
 
-        # Session selector
-        session_layout = QHBoxLayout()
-        session_layout.addWidget(QLabel("选择会话:"))
-        self.session_combo = QComboBox()
-        self.session_combo.setMinimumWidth(200)
-        self.session_combo.currentIndexChanged.connect(self._on_session_selected)
-        session_layout.addWidget(self.session_combo)
-        session_layout.addStretch()
-        layout.addLayout(session_layout)
+        layout.addLayout(ctrl_row)
 
-        # Main content: messages + summary
+        # Messages + Summary splitter
         splitter = QSplitter(Qt.Vertical)
 
-        # Message stream
+        # Messages
         msg_widget = QWidget()
         msg_layout = QVBoxLayout(msg_widget)
         msg_layout.setContentsMargins(0, 0, 0, 0)
-        msg_layout.addWidget(QLabel("实时消息:"))
+        msg_layout.setSpacing(4)
+
+        msg_label = QLabel("实时消息")
+        msg_label.setStyleSheet("color: #8888a0; font-size: 12px;")
+        msg_layout.addWidget(msg_label)
+
         self.message_area = QScrollArea()
         self.message_area.setWidgetResizable(True)
+        self.message_area.setFrameShape(QFrame.NoFrame)
         self.message_container = QWidget()
         self.message_layout = QVBoxLayout(self.message_container)
         self.message_layout.setSpacing(4)
@@ -81,25 +88,29 @@ class ChatReaderPanel(QWidget):
         msg_layout.addWidget(self.message_area)
         splitter.addWidget(msg_widget)
 
-        # AI Summary area
+        # Summary
         summary_widget = QWidget()
         summary_layout = QVBoxLayout(summary_widget)
         summary_layout.setContentsMargins(0, 0, 0, 0)
-        summary_layout.addWidget(QLabel("AI 摘要:"))
+        summary_layout.setSpacing(4)
+
+        summary_label = QLabel("AI 摘要")
+        summary_label.setStyleSheet("color: #8888a0; font-size: 12px;")
+        summary_layout.addWidget(summary_label)
+
         self.summary_output = QTextEdit()
         self.summary_output.setReadOnly(True)
+        self.summary_output.setPlaceholderText("AI 摘要将在此显示...")
         summary_layout.addWidget(self.summary_output)
         splitter.addWidget(summary_widget)
 
-        splitter.setSizes([400, 200])
-        layout.addWidget(splitter)
+        splitter.setSizes([350, 150])
+        layout.addWidget(splitter, 1)
 
-        # Status bar
+        # Status
         self.status_label = QLabel("就绪")
-        self.status_label.setStyleSheet("color: #6c7086; font-size: 12px;")
+        self.status_label.setStyleSheet("color: #555570; font-size: 12px;")
         layout.addWidget(self.status_label)
-
-        self._monitoring = False
 
     def _on_wechat_toggled(self, state: int) -> None:
         if state == Qt.Checked:
@@ -151,20 +162,19 @@ class ChatReaderPanel(QWidget):
             return
         username = self.session_combo.currentData()
         if username and self._wechat_reader:
-            self.status_label.setText(f"正在加载 [{self.session_combo.currentText()}] 的消息...")
+            self.status_label.setText(f"正在加载消息...")
             messages = self._wechat_reader.get_messages(username, limit=20)
             self._display_messages(messages)
             self.status_label.setText(f"已加载 {len(messages)} 条消息")
 
     def _display_messages(self, messages: list[ChatMessage]) -> None:
-        # Clear existing messages
         while self.message_layout.count():
             item = self.message_layout.takeAt(0)
             widget = item.widget()
             if widget:
                 widget.deleteLater()
 
-        for msg in reversed(messages):  # Oldest first
+        for msg in reversed(messages):
             is_self = msg.sender == "我"
             time_str = msg.created_at.strftime("%H:%M") if msg.created_at else ""
             display = f"[{time_str}] {msg.sender}: {msg.content[:100]}"
@@ -195,7 +205,6 @@ class ChatReaderPanel(QWidget):
         display = f"[{time_str}] {msg.sender}: {msg.content[:100]}"
         bubble = MessageBubble(display, is_user=is_self)
         self.message_layout.addWidget(bubble)
-        # Auto-scroll
         sb = self.message_area.verticalScrollBar()
         sb.setValue(sb.maximum())
 

@@ -10,7 +10,6 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 
 from src.app.application import Application
-from src.app.config import Config
 from src.ui.main_window import MainWindow
 from src.ui.floating_ball import FloatingBall
 from src.ui.styles import ThemeManager
@@ -29,8 +28,7 @@ def main() -> None:
     app = Application()
 
     # Theme
-    theme = app.config.get("ui.theme", "dark")
-    ThemeManager.apply(theme)
+    ThemeManager.apply("dark")
 
     # Main window
     main_window = MainWindow(app=app)
@@ -51,12 +49,9 @@ def main() -> None:
         main_window.raise_()
         ball.hide()
 
-    def hide_main():
-        main_window.hide()
-        ball.show()
-
     app.signals.show_main_window.connect(show_main)
     ball.clicked.connect(show_main)
+
     def close_override(event):
         event.ignore()
         main_window.hide()
@@ -68,10 +63,11 @@ def main() -> None:
     ai_engine = AIEngine(config=app.config)
     main_window.chat_panel.set_ai_engine(ai_engine)
 
-    # Show floating ball
+    # Show main window + floating ball
+    main_window.show()
     ball.show()
 
-    # Setup async loop and run
+    # Setup async loop (qasync integrates Qt + asyncio)
     loop = setup_async_loop(app.app)
 
     async def startup():
@@ -79,8 +75,13 @@ def main() -> None:
 
     loop.create_task(startup())
 
-    exit_code = app.run()
-    sys.exit(exit_code)
+    # Setup system tray
+    app.setup_tray()
+
+    with loop:
+        loop.run_forever()
+
+    sys.exit(0)
 
 
 if __name__ == "__main__":

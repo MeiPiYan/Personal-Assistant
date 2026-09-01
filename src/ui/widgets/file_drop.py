@@ -1,3 +1,5 @@
+"""Drag-and-drop file upload area."""
+
 from __future__ import annotations
 
 from PySide6.QtCore import Qt, Signal
@@ -14,18 +16,21 @@ class FileDropWidget(QFrame):
         super().__init__(parent)
         self.setAcceptDrops(True)
         self.setMinimumHeight(80)
-        self.setMaximumHeight(120)
+        self.setMaximumHeight(110)
         self.setStyleSheet("""
             QFrame {
-                border: 2px dashed #45475a;
+                border: 2px dashed #2a2a3e;
                 border-radius: 12px;
-                background-color: #181825;
+                background-color: #12121e;
+            }
+            QFrame:hover {
+                border-color: #4f46e5;
             }
         """)
         layout = QVBoxLayout(self)
-        label = QLabel("拖拽文件到此处 (PDF / Word / TXT / MD)")
+        label = QLabel("📄  拖拽文件到此处  (PDF / Word / TXT / MD)")
         label.setAlignment(Qt.AlignCenter)
-        label.setStyleSheet("color: #6c7086; font-size: 13px; border: none;")
+        label.setStyleSheet("color: #555570; font-size: 13px; border: none;")
         layout.addWidget(label)
 
     def dragEnterEvent(self, event: QDragEnterEvent) -> None:

@@ -1,72 +1,90 @@
+"""Document panel - file parsing and AI summarization."""
+
 from __future__ import annotations
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel,
-    QTextEdit, QPushButton, QFileDialog, QScrollArea, QFrame,
+    QTextEdit, QPushButton, QFrame, QSplitter, QLineEdit,
 )
 
 from .widgets.file_drop import FileDropWidget
 
 
 class DocumentPanel(QWidget):
-    """Document upload and AI summarization panel."""
-
     def __init__(self, app=None, parent=None):
         super().__init__(parent)
         self.app = app
+        self._current_text = ""
         self._setup_ui()
 
     def _setup_ui(self) -> None:
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(12, 12, 12, 12)
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(12)
 
-        # Header
-        header = QLabel("文档读取与总结")
-        header.setStyleSheet("font-size: 18px; font-weight: bold; padding: 8px 0;")
+        header = QLabel("文档解析")
+        header.setStyleSheet("font-size: 18px; font-weight: bold; padding: 0 0 4px 0;")
         layout.addWidget(header)
 
-        # File drop area
+        # Drop area
         self.drop_widget = FileDropWidget()
         self.drop_widget.files_dropped.connect(self._on_files_dropped)
         layout.addWidget(self.drop_widget)
 
-        # Or paste URL
-        url_layout = QHBoxLayout()
-        self.url_input = QTextEdit()
-        self.url_input.setMaximumHeight(36)
+        # URL input row
+        url_row = QHBoxLayout()
+        url_row.setSpacing(8)
+
+        self.url_input = QLineEdit()
         self.url_input.setPlaceholderText("或粘贴网页 URL...")
-        url_layout.addWidget(self.url_input)
+        url_row.addWidget(self.url_input, 1)
+
         fetch_btn = QPushButton("提取")
-        fetch_btn.setFixedWidth(80)
+        fetch_btn.setFixedWidth(64)
         fetch_btn.clicked.connect(self._on_fetch_url)
-        url_layout.addWidget(fetch_btn)
-        layout.addLayout(url_layout)
+        url_row.addWidget(fetch_btn)
+
+        layout.addLayout(url_row)
+
+        # Content + Summary splitter
+        splitter = QSplitter(Qt.Vertical)
 
         # Content preview
-        preview_label = QLabel("文档内容:")
-        layout.addWidget(preview_label)
+        left = QWidget()
+        left_layout = QVBoxLayout(left)
+        left_layout.setContentsMargins(0, 0, 0, 0)
+        left_layout.setSpacing(4)
+        left_layout.addWidget(QLabel("文档内容"))
         self.content_preview = QTextEdit()
         self.content_preview.setReadOnly(True)
-        self.content_preview.setMaximumHeight(200)
-        layout.addWidget(self.content_preview)
+        self.content_preview.setPlaceholderText("文档内容预览...")
+        left_layout.addWidget(self.content_preview)
+        splitter.addWidget(left)
 
-        # Summary button + output
-        btn_layout = QHBoxLayout()
-        self.summarize_btn = QPushButton("AI 总结")
-        self.summarize_btn.clicked.connect(self._on_summarize)
+        # Summary
+        right = QWidget()
+        right_layout = QVBoxLayout(right)
+        right_layout.setContentsMargins(0, 0, 0, 0)
+        right_layout.setSpacing(4)
+        right_layout.addWidget(QLabel("AI 总结"))
+
+        btn_row = QHBoxLayout()
+        self.summarize_btn = QPushButton("生成总结")
         self.summarize_btn.setEnabled(False)
-        btn_layout.addWidget(self.summarize_btn)
-        btn_layout.addStretch()
-        layout.addLayout(btn_layout)
+        self.summarize_btn.clicked.connect(self._on_summarize)
+        btn_row.addWidget(self.summarize_btn)
+        btn_row.addStretch()
+        right_layout.addLayout(btn_row)
 
-        summary_label = QLabel("AI 总结:")
-        layout.addWidget(summary_label)
         self.summary_output = QTextEdit()
         self.summary_output.setReadOnly(True)
-        layout.addWidget(self.summary_output)
+        self.summary_output.setPlaceholderText("总结结果...")
+        right_layout.addWidget(self.summary_output)
+        splitter.addWidget(right)
 
-        self._current_text = ""
+        splitter.setSizes([200, 200])
+        layout.addWidget(splitter, 1)
 
     def _on_files_dropped(self, files: list[str]) -> None:
         from src.document.parser import DocumentParser
@@ -81,7 +99,7 @@ class DocumentPanel(QWidget):
         self.summarize_btn.setEnabled(bool(self._current_text))
 
     def _on_fetch_url(self) -> None:
-        url = self.url_input.toPlainText().strip()
+        url = self.url_input.text().strip()
         if not url:
             return
         import trafilatura
@@ -95,4 +113,3 @@ class DocumentPanel(QWidget):
         if not self._current_text or not self.app:
             return
         self.summary_output.setPlainText("正在生成总结...")
-        # Will be connected to AI engine via panel coordination

@@ -1,14 +1,13 @@
+"""Main window with sidebar navigation."""
+
 from __future__ import annotations
 
-from PySide6.QtCore import Qt, QSize
-from PySide6.QtGui import QIcon
+from PySide6.QtCore import Qt, Signal, QSize
+from PySide6.QtGui import QIcon, QFont, QPainter, QColor, QPixmap
 from PySide6.QtWidgets import (
-    QMainWindow,
-    QWidget,
-    QVBoxLayout,
-    QTabWidget,
-    QStatusBar,
-    QLabel,
+    QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
+    QStackedWidget, QStatusBar, QLabel, QButtonGroup,
+    QPushButton, QFrame, QSizePolicy, QSpacerItem,
 )
 
 from .chat_panel import ChatPanel
@@ -20,16 +19,38 @@ from .settings_panel import SettingsPanel
 from .chat_reader_panel import ChatReaderPanel
 
 
+# Navigation items: (icon_char, label, tooltip)
+_NAV_ITEMS = [
+    ("💬", "对话", "AI 对话"),
+    ("🔍", "搜索", "网络 / 本地搜索"),
+    ("📄", "文档", "文档解析与总结"),
+    ("📖", "监控", "聊天消息监控"),
+    ("📝", "日记", "日记与笔记"),
+    ("📚", "知识", "知识库"),
+    ("⚙", "设置", "应用设置"),
+]
+
+
+def _make_nav_button(icon_text: str, label: str, tooltip: str) -> QPushButton:
+    btn = QPushButton(f"{icon_text}\n{label}")
+    btn.setToolTip(tooltip)
+    btn.setCheckable(True)
+    btn.setFixedWidth(72)
+    btn.setMinimumHeight(56)
+    btn.setCursor(Qt.PointingHandCursor)
+    return btn
+
+
 class MainWindow(QMainWindow):
     def __init__(self, app=None):
         super().__init__()
         self.app = app
         self.setWindowTitle("AI Assistant")
-        self.setMinimumSize(800, 600)
+        self.setMinimumSize(860, 560)
 
         cfg = app.config if app else None
-        w = cfg.get("ui.main_window.width", 900) if cfg else 900
-        h = cfg.get("ui.main_window.height", 650) if cfg else 650
+        w = cfg.get("ui.main_window.width", 960) if cfg else 960
+        h = cfg.get("ui.main_window.height", 640) if cfg else 640
         self.resize(w, h)
 
         self._setup_ui()
@@ -38,30 +59,92 @@ class MainWindow(QMainWindow):
     def _setup_ui(self) -> None:
         central = QWidget()
         self.setCentralWidget(central)
-        layout = QVBoxLayout(central)
-        layout.setContentsMargins(0, 0, 0, 0)
+        root_layout = QHBoxLayout(central)
+        root_layout.setContentsMargins(0, 0, 0, 0)
+        root_layout.setSpacing(0)
 
-        self.tabs = QTabWidget()
-        self.tabs.setTabPosition(QTabWidget.North)
-        self.tabs.setDocumentMode(True)
+        # --- Sidebar ---
+        sidebar = QFrame()
+        sidebar.setObjectName("sidebar")
+        sidebar.setFixedWidth(80)
+        sidebar_layout = QVBoxLayout(sidebar)
+        sidebar_layout.setContentsMargins(6, 12, 6, 12)
+        sidebar_layout.setSpacing(4)
 
+        # Logo
+        title = QLabel("AI")
+        title.setObjectName("sidebarTitle")
+        title.setAlignment(Qt.AlignCenter)
+        sidebar_layout.addWidget(title)
+
+        sidebar_layout.addSpacing(8)
+
+        # Nav buttons
+        self._nav_group = QButtonGroup(self)
+        self._nav_group.setExclusive(True)
+        self._nav_buttons: list[QPushButton] = []
+
+        for icon_text, label, tooltip in _NAV_ITEMS:
+            btn = _make_nav_button(icon_text, label, tooltip)
+            self._nav_group.addButton(btn)
+            self._nav_buttons.append(btn)
+            sidebar_layout.addWidget(btn)
+
+        sidebar_layout.addStretch()
+
+        # Sidebar version label
+        ver = QLabel("v0.1")
+        ver.setAlignment(Qt.AlignCenter)
+        ver.setStyleSheet("color: #444460; font-size: 10px;")
+        sidebar_layout.addWidget(ver)
+
+        root_layout.addWidget(sidebar)
+
+        # --- Content ---
+        content_widget = QWidget()
+        content_widget.setObjectName("contentArea")
+        content_layout = QVBoxLayout(content_widget)
+        content_layout.setContentsMargins(0, 0, 0, 0)
+        content_layout.setSpacing(0)
+
+        self._stack = QStackedWidget()
+        content_layout.addWidget(self._stack)
+
+        # Create panels
         self.chat_panel = ChatPanel(app=self.app)
-        self.doc_panel = DocumentPanel(app=self.app)
         self.search_panel = SearchPanel(app=self.app)
+        self.doc_panel = DocumentPanel(app=self.app)
+        self.reader_panel = ChatReaderPanel(app=self.app)
         self.diary_panel = DiaryPanel(app=self.app)
         self.knowledge_panel = KnowledgePanel(app=self.app)
         self.settings_panel = SettingsPanel(app=self.app)
-        self.reader_panel = ChatReaderPanel(app=self.app)
 
-        self.tabs.addTab(self.chat_panel, "AI 对话")
-        self.tabs.addTab(self.doc_panel, "文档总结")
-        self.tabs.addTab(self.search_panel, "搜索")
-        self.tabs.addTab(self.reader_panel, "消息监控")
-        self.tabs.addTab(self.diary_panel, "日记")
-        self.tabs.addTab(self.knowledge_panel, "知识库")
-        self.tabs.addTab(self.settings_panel, "设置")
+        self._panels = [
+            self.chat_panel,
+            self.search_panel,
+            self.doc_panel,
+            self.reader_panel,
+            self.diary_panel,
+            self.knowledge_panel,
+            self.settings_panel,
+        ]
 
-        layout.addWidget(self.tabs)
+        for panel in self._panels:
+            self._stack.addWidget(panel)
+
+        # Wire navigation
+        for i, btn in enumerate(self._nav_buttons):
+            btn.clicked.connect(lambda checked, idx=i: self._switch_page(idx))
+
+        root_layout.addWidget(content_widget, 1)
+
+        # Default to chat page
+        self._switch_page(0)
+
+    def _switch_page(self, index: int) -> None:
+        self._stack.setCurrentIndex(index)
+        for i, btn in enumerate(self._nav_buttons):
+            btn.setChecked(i == index)
 
     def _setup_status_bar(self) -> None:
         status = QStatusBar()
