@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
+
 from PySide6.QtCore import Qt, Signal, Slot
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QTextEdit,
@@ -12,6 +14,11 @@ from PySide6.QtGui import QFont
 
 from .widgets.message_bubble import MessageBubble
 from .widgets.streaming_text import StreamingTextWidget
+from ..ai.models import (
+    CLOUD_PROVIDERS, PROVIDER_NAMES, PROVIDER_MODELS,
+    get_all_model_strings, get_default_model,
+)
+from ..ai.prompts import build_chat_messages
 
 
 class ChatPanel(QWidget):
@@ -44,12 +51,7 @@ class ChatPanel(QWidget):
         top_bar.addWidget(model_label)
 
         self.model_combo = QComboBox()
-        self.model_combo.setFixedWidth(260)
-        self.model_combo.addItems([
-            "openai/gpt-4o",
-            "anthropic/claude-sonnet-4-20250514",
-            "ollama/llama3.1",
-        ])
+        self.model_combo.setFixedWidth(300)
         self.model_combo.setEditable(True)
         self.model_combo.currentTextChanged.connect(self._on_model_changed)
         top_bar.addWidget(self.model_combo)
@@ -118,6 +120,42 @@ class ChatPanel(QWidget):
 
         layout.addWidget(input_container)
 
+    def load_models_from_config(self) -> None:
+        """Load models based on current config settings."""
+        self.model_combo.blockSignals(True)
+        self.model_combo.clear()
+
+        if not self.app or not self.app.config:
+            self.model_combo.addItems(get_all_model_strings())
+            self.model_combo.blockSignals(False)
+            return
+
+        cfg = self.app.config
+        provider = cfg.get("ai.default_provider", "deepseek")
+        model_id = cfg.get("ai.default_model", "deepseek-chat")
+
+        # Get models for current provider
+        models = PROVIDER_MODELS.get(provider, [])
+        provider_name = PROVIDER_NAMES.get(provider, provider)
+
+        for model_name, display_name, _ in models:
+            full_name = f"{provider}/{model_name}"
+            self.model_combo.addItem(f"{display_name} ({provider_name})", full_name)
+
+        # Set current model
+        current_full = f"{provider}/{model_id}"
+        idx = self.model_combo.findData(current_full)
+        if idx >= 0:
+            self.model_combo.setCurrentIndex(idx)
+        else:
+            self.model_combo.setEditText(current_full)
+
+        self.model_combo.blockSignals(False)
+
+        # Update AI engine
+        if self._ai_engine:
+            self._ai_engine.set_model(current_full)
+
     def eventFilter(self, obj, event) -> bool:
         if obj == self.input_field and event.type() == event.Type.KeyPress:
             if event.key() == Qt.Key_Return and not event.modifiers() & Qt.ShiftModifier:
@@ -139,7 +177,19 @@ class ChatPanel(QWidget):
             self.streaming_widget.clear()
             self.streaming_widget.show()
             self.send_btn.setEnabled(False)
-            self._ai_engine.chat_stream(list(self._messages))
+
+            # Get selected model
+            model = self.model_combo.currentData()
+            if model:
+                self._ai_engine.set_model(model)
+
+            # Build messages with system prompt
+            # Extract chat history (excluding the latest user message)
+            chat_history = self._messages[:-1] if len(self._messages) > 1 else []
+            api_messages = build_chat_messages(text, chat_history)
+
+            # Run async chat_stream via asyncio task
+            asyncio.ensure_future(self._ai_engine.chat_stream(api_messages))
 
     def _add_message(self, text: str, is_user: bool) -> None:
         bubble = MessageBubble(text, is_user=is_user)
@@ -171,8 +221,9 @@ class ChatPanel(QWidget):
         self.send_btn.setEnabled(True)
         self._add_message(f"[错误] {error}", is_user=False)
 
-    def _on_model_changed(self, model: str) -> None:
-        if self._ai_engine:
+    def _on_model_changed(self, index: int) -> None:
+        model = self.model_combo.currentData()
+        if model and self._ai_engine:
             self._ai_engine.set_model(model)
 
     def _clear_chat(self) -> None:

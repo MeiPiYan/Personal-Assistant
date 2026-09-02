@@ -136,10 +136,16 @@ class MainWindow(QMainWindow):
         for i, btn in enumerate(self._nav_buttons):
             btn.clicked.connect(lambda checked, idx=i: self._switch_page(idx))
 
+        # Wire settings saved signal to refresh chat panel
+        self.settings_panel.settings_saved.connect(self.chat_panel.load_models_from_config)
+
         root_layout.addWidget(content_widget, 1)
 
         # Default to chat page
         self._switch_page(0)
+
+        # Initial load of models for chat panel
+        self.chat_panel.load_models_from_config()
 
     def _switch_page(self, index: int) -> None:
         self._stack.setCurrentIndex(index)
