@@ -210,6 +210,43 @@ QCheckBox::indicator:checked {
     border-color: #4f46e5;
 }
 
+/* === RadioButton === */
+QRadioButton {
+    spacing: 8px;
+    color: #e0e0e0;
+}
+
+QRadioButton::indicator {
+    width: 18px;
+    height: 18px;
+    border-radius: 10px;
+    border: 2px solid #2a2a3e;
+    background-color: #1a1a2e;
+}
+
+QRadioButton::indicator:hover {
+    border-color: #4f46e5;
+}
+
+QRadioButton::indicator:checked {
+    border: 2px solid #4f46e5;
+    background-color: #4f46e5;
+    image: url(none);
+}
+
+QRadioButton::indicator:checked {
+    background-color: qradialgradient(
+        cx: 0.5, cy: 0.5,
+        radius: 0.4,
+        fx: 0.5, fy: 0.5,
+        stop: 0 #ffffff,
+        stop: 0.8 #ffffff,
+        stop: 0.81 #4f46e5,
+        stop: 1 #4f46e5
+    );
+    border-color: #4f46e5;
+}
+
 /* === Status Bar === */
 QStatusBar {
     background-color: #161622;
