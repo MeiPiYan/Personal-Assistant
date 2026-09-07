@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
+
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel,
@@ -9,6 +11,7 @@ from PySide6.QtWidgets import (
 )
 
 from .widgets.file_drop import FileDropWidget
+from ..document.summarizer import DocumentSummarizer
 
 
 class DocumentPanel(QWidget):
@@ -16,6 +19,8 @@ class DocumentPanel(QWidget):
         super().__init__(parent)
         self.app = app
         self._current_text = ""
+        self._ai_engine = None
+        self._summarizer: DocumentSummarizer | None = None
         self._setup_ui()
 
     def _setup_ui(self) -> None:
@@ -86,6 +91,11 @@ class DocumentPanel(QWidget):
         splitter.setSizes([200, 200])
         layout.addWidget(splitter, 1)
 
+    def set_ai_engine(self, engine) -> None:
+        """Receive the shared AI engine and create the summarizer."""
+        self._ai_engine = engine
+        self._summarizer = DocumentSummarizer(ai_engine=engine)
+
     def _on_files_dropped(self, files: list[str]) -> None:
         from src.document.parser import DocumentParser
         parser = DocumentParser()
@@ -110,6 +120,21 @@ class DocumentPanel(QWidget):
             self.summarize_btn.setEnabled(bool(self._current_text))
 
     def _on_summarize(self) -> None:
-        if not self._current_text or not self.app:
+        if not self._current_text or not self._summarizer:
             return
-        self.summary_output.setPlainText("正在生成总结...")
+        # Show loading state
+        self.summarize_btn.setEnabled(False)
+        self.summarize_btn.setText("总结中...")
+        self.summary_output.setPlainText("正在生成总结，请稍候...")
+        # Schedule the async summarization
+        asyncio.ensure_future(self._do_summarize())
+
+    async def _do_summarize(self) -> None:
+        try:
+            result = await self._summarizer.summarize(self._current_text)
+            self.summary_output.setPlainText(result)
+        except Exception as e:
+            self.summary_output.setPlainText(f"[总结失败: {e}]")
+        finally:
+            self.summarize_btn.setEnabled(True)
+            self.summarize_btn.setText("生成总结")

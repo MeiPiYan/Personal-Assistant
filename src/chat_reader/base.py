@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from PySide6.QtCore import Signal, QObject
-from .models import ChatMessage
+from ..storage.models import ChatMessage
 
 
 class ChatReaderBase(QObject):

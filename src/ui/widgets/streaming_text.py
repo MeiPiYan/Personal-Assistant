@@ -5,6 +5,8 @@ from __future__ import annotations
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QTextEdit
 
+from ..styles import ThemeManager
+
 
 class StreamingTextWidget(QTextEdit):
     """Displays streaming AI response token by token."""
@@ -15,14 +17,18 @@ class StreamingTextWidget(QTextEdit):
         self.setMaximumHeight(180)
         self.setFrameShape(QTextEdit.NoFrame)
         self.setPlaceholderText("AI 正在思考...")
-        self.setStyleSheet("""
-            QTextEdit {
-                background-color: #1a1a2e;
-                color: #d0d0e0;
-                border-top: 1px solid #2a2a3e;
+        self._apply_theme()
+
+    def _apply_theme(self) -> None:
+        c = ThemeManager.get_colors()
+        self.setStyleSheet(f"""
+            QTextEdit {{
+                background-color: {c.bg_tertiary};
+                color: {c.text_input};
+                border-top: 1px solid {c.border};
                 padding: 12px 20px;
                 font-size: 14px;
-            }
+            }}
         """)
 
     def append_text(self, token: str) -> None:

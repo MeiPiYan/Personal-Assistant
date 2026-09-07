@@ -96,3 +96,39 @@ class DAO:
         )
         rows = await cursor.fetchall()
         return [dict(r) for r in rows]
+
+    # --- Chat History (AI conversation persistence) ---
+    async def insert_chat_history(
+        self, role: str, content: str, model: str | None = None,
+        session_id: str = "default",
+    ) -> int:
+        """Save a single chat message to the chat_history table."""
+        cursor = await self.db.connection.execute(
+            "INSERT INTO chat_history (session_id, role, content, model) "
+            "VALUES (?, ?, ?, ?)",
+            (session_id, role, content, model),
+        )
+        await self.db.connection.commit()
+        return cursor.lastrowid
+
+    async def get_chat_history(
+        self, limit: int = 50, session_id: str = "default",
+    ) -> list[dict]:
+        """Retrieve recent chat history, oldest first (for display)."""
+        cursor = await self.db.connection.execute(
+            "SELECT * FROM chat_history "
+            "WHERE session_id = ? "
+            "ORDER BY id DESC LIMIT ?",
+            (session_id, limit),
+        )
+        rows = await cursor.fetchall()
+        # Reverse so oldest comes first (natural conversation order)
+        return [dict(r) for r in reversed(rows)]
+
+    async def clear_chat_history(self, session_id: str = "default") -> None:
+        """Delete all chat history for a session."""
+        await self.db.connection.execute(
+            "DELETE FROM chat_history WHERE session_id = ?",
+            (session_id,),
+        )
+        await self.db.connection.commit()

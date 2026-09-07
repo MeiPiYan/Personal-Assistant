@@ -2,14 +2,18 @@
 
 from __future__ import annotations
 
+import asyncio
+
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel,
     QLineEdit, QPushButton, QGroupBox, QFormLayout,
     QCheckBox, QScrollArea, QFrame, QRadioButton,
     QButtonGroup, QStackedWidget, QComboBox,
+    QTableWidget, QTableWidgetItem, QHeaderView, QMessageBox,
 )
 
+from .styles import ThemeManager
 from ..ai.models import (
     CLOUD_PROVIDERS, PROVIDER_NAMES, PROVIDER_MODELS,
     get_provider_models_for_combo,
@@ -23,9 +27,60 @@ class SettingsPanel(QWidget):
     def __init__(self, app=None, parent=None):
         super().__init__(parent)
         self.app = app
+        self._backup_mgr = None
         self._setup_ui()
+        ThemeManager.register_panel(self)
+
+    def _apply_theme(self) -> None:
+        c = ThemeManager.get_colors()
+        self._type_label.setStyleSheet(
+            f"color: {c.text_secondary}; font-size: 12px;"
+        )
+        self._cloud_hint.setStyleSheet(
+            f"color: {c.text_secondary}; font-size: 12px;"
+        )
+        self._local_hint.setStyleSheet(
+            f"color: {c.text_secondary}; font-size: 12px;"
+        )
+        self._ollama_status.setStyleSheet(
+            f"color: {c.text_secondary}; font-size: 11px;"
+        )
+        self._custom_hint.setStyleSheet(
+            f"color: {c.text_secondary}; font-size: 12px;"
+        )
+        self._backup_dir_label.setStyleSheet(
+            f"color: {c.text_secondary}; font-size: 12px;"
+        )
+        self._backup_dir_display.setStyleSheet(
+            f"color: {c.text_secondary}; font-size: 12px;"
+        )
+        self._auto_interval_label.setStyleSheet(
+            f"color: {c.text_secondary}; font-size: 12px;"
+        )
+        self._keep_label.setStyleSheet(
+            f"color: {c.text_secondary}; font-size: 12px;"
+        )
+        self._backup_status_label.setStyleSheet(
+            f"color: {c.text_secondary}; font-size: 11px;"
+        )
+        self._table_header.setStyleSheet(
+            f"color: {c.text_secondary}; font-size: 12px; padding-top: 4px;"
+        )
+        # Refresh provider hint labels
+        for hint in self._provider_hints:
+            hint.setStyleSheet(f"color: {c.text_secondary}; font-size: 11px;")
+        # Refresh restore buttons
+        for row_idx in range(self.backup_table.rowCount()):
+            btn = self.backup_table.cellWidget(row_idx, 4)
+            if btn and isinstance(btn, QPushButton):
+                btn.setStyleSheet(
+                    f"QPushButton {{ background-color: {c.btn_secondary_bg}; color: {c.btn_secondary_text}; "
+                    f"border: 1px solid {c.btn_secondary_border}; border-radius: 4px; padding: 2px 8px; }}"
+                    f"QPushButton:hover {{ background-color: {c.btn_secondary_hover_bg}; color: {c.btn_secondary_hover_text}; }}"
+                )
 
     def _setup_ui(self) -> None:
+        c = ThemeManager.get_colors()
         # Scrollable wrapper
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
@@ -43,14 +98,29 @@ class SettingsPanel(QWidget):
         header.setStyleSheet("font-size: 18px; font-weight: bold; padding: 0 0 4px 0;")
         layout.addWidget(header)
 
+        # Appearance settings
+        appearance_group = QGroupBox("外观设置")
+        appearance_layout = QFormLayout()
+
+        self.theme_combo = QComboBox()
+        self.theme_combo.setFixedWidth(180)
+        self.theme_combo.addItems(["深色", "浅色"])
+        self.theme_combo.currentIndexChanged.connect(self._on_theme_changed)
+        appearance_layout.addRow("主题:", self.theme_combo)
+
+        appearance_group.setLayout(appearance_layout)
+        layout.addWidget(appearance_group)
+
         # AI Provider - Hierarchical
         ai_group = QGroupBox("AI 模型配置")
         ai_layout = QVBoxLayout()
 
         # Provider type selector
-        type_label = QLabel("选择模型来源:")
-        type_label.setStyleSheet("color: #8888a0; font-size: 12px;")
-        ai_layout.addWidget(type_label)
+        self._type_label = QLabel("选择模型来源:")
+        self._type_label.setStyleSheet(
+            f"color: {c.text_secondary}; font-size: 12px;"
+        )
+        ai_layout.addWidget(self._type_label)
 
         self._type_group = QButtonGroup(self)
         self._type_group.setExclusive(True)
@@ -85,9 +155,11 @@ class SettingsPanel(QWidget):
         cloud_layout.setContentsMargins(0, 12, 0, 0)
         cloud_layout.setSpacing(12)
 
-        cloud_hint = QLabel("选择服务商并填入 API Key:")
-        cloud_hint.setStyleSheet("color: #8888a0; font-size: 12px;")
-        cloud_layout.addWidget(cloud_hint)
+        self._cloud_hint = QLabel("选择服务商并填入 API Key:")
+        self._cloud_hint.setStyleSheet(
+            f"color: {c.text_secondary}; font-size: 12px;"
+        )
+        cloud_layout.addWidget(self._cloud_hint)
 
         # Provider selector
         provider_row = QHBoxLayout()
@@ -117,6 +189,7 @@ class SettingsPanel(QWidget):
 
         # Helper to create provider config widgets
         self._provider_configs = {}
+        self._provider_hints = []
 
         for provider in CLOUD_PROVIDERS:
             widget = QWidget()
@@ -148,11 +221,17 @@ class SettingsPanel(QWidget):
             # Hint for special providers
             if provider == "siliconflow":
                 hint = QLabel("* SiliconFlow 聚合多家模型，按用量计费，性价比高")
-                hint.setStyleSheet("color: #8888a0; font-size: 11px;")
+                hint.setStyleSheet(
+                    f"color: {c.text_secondary}; font-size: 11px;"
+                )
+                self._provider_hints.append(hint)
                 form.addRow("", hint)
             elif provider == "groq":
                 hint = QLabel("* Groq 提供免费额度，推理速度极快")
-                hint.setStyleSheet("color: #8888a0; font-size: 11px;")
+                hint.setStyleSheet(
+                    f"color: {c.text_secondary}; font-size: 11px;"
+                )
+                self._provider_hints.append(hint)
                 form.addRow("", hint)
 
             self._provider_configs[provider] = {
@@ -172,9 +251,11 @@ class SettingsPanel(QWidget):
         local_layout.setContentsMargins(0, 12, 0, 0)
         local_layout.setSpacing(12)
 
-        local_hint = QLabel("配置本地 Ollama 服务:")
-        local_hint.setStyleSheet("color: #8888a0; font-size: 12px;")
-        local_layout.addWidget(local_hint)
+        self._local_hint = QLabel("配置本地 Ollama 服务:")
+        self._local_hint.setStyleSheet(
+            f"color: {c.text_secondary}; font-size: 12px;"
+        )
+        local_layout.addWidget(self._local_hint)
 
         local_form = QFormLayout()
         local_form.setContentsMargins(0, 0, 0, 0)
@@ -201,9 +282,11 @@ class SettingsPanel(QWidget):
         local_layout.addLayout(local_form)
 
         # Ollama status
-        self.ollama_status = QLabel("")
-        self.ollama_status.setStyleSheet("color: #8888a0; font-size: 11px;")
-        local_layout.addWidget(self.ollama_status)
+        self._ollama_status = QLabel("")
+        self._ollama_status.setStyleSheet(
+            f"color: {c.text_secondary}; font-size: 11px;"
+        )
+        local_layout.addWidget(self._ollama_status)
 
         local_layout.addStretch()
 
@@ -215,9 +298,11 @@ class SettingsPanel(QWidget):
         custom_layout.setContentsMargins(0, 12, 0, 0)
         custom_layout.setSpacing(12)
 
-        custom_hint = QLabel("配置 OpenAI 兼容的自定义 API 端点:")
-        custom_hint.setStyleSheet("color: #8888a0; font-size: 12px;")
-        custom_layout.addWidget(custom_hint)
+        self._custom_hint = QLabel("配置 OpenAI 兼容的自定义 API 端点:")
+        self._custom_hint.setStyleSheet(
+            f"color: {c.text_secondary}; font-size: 12px;"
+        )
+        custom_layout.addWidget(self._custom_hint)
 
         custom_form = QFormLayout()
         custom_form.setContentsMargins(0, 0, 0, 0)
@@ -292,6 +377,117 @@ class SettingsPanel(QWidget):
         reader_group.setLayout(reader_form)
         layout.addWidget(reader_group)
 
+        # --- Backup Section ---
+        backup_group = QGroupBox("备份管理")
+        backup_layout = QVBoxLayout()
+        backup_layout.setSpacing(10)
+
+        # Backup controls row
+        backup_ctrl_row = QHBoxLayout()
+
+        self.backup_enabled_check = QCheckBox("启用自动备份")
+        backup_ctrl_row.addWidget(self.backup_enabled_check)
+
+        backup_ctrl_row.addSpacing(16)
+
+        self._backup_dir_label = QLabel("备份目录:")
+        self._backup_dir_label.setStyleSheet(
+            f"color: {c.text_secondary}; font-size: 12px;"
+        )
+        backup_ctrl_row.addWidget(self._backup_dir_label)
+
+        self.backup_dir_display = QLineEdit()
+        self.backup_dir_display.setReadOnly(True)
+        self.backup_dir_display.setFixedWidth(200)
+        self.backup_dir_display.setStyleSheet(
+            f"color: {c.text_secondary}; font-size: 12px;"
+        )
+        backup_ctrl_row.addWidget(self.backup_dir_display)
+
+        self.backup_now_btn = QPushButton("立即备份")
+        self.backup_now_btn.clicked.connect(self._on_backup_now)
+        backup_ctrl_row.addWidget(self.backup_now_btn)
+
+        backup_ctrl_row.addStretch()
+        backup_layout.addLayout(backup_ctrl_row)
+
+        # Auto-backup settings row
+        auto_row = QHBoxLayout()
+
+        self._auto_interval_label = QLabel("自动备份间隔 (小时):")
+        self._auto_interval_label.setStyleSheet(
+            f"color: {c.text_secondary}; font-size: 12px;"
+        )
+        auto_row.addWidget(self._auto_interval_label)
+
+        from PySide6.QtWidgets import QSpinBox
+        self.backup_interval_spin = QSpinBox()
+        self.backup_interval_spin.setRange(1, 720)
+        self.backup_interval_spin.setValue(24)
+        self.backup_interval_spin.setSuffix(" h")
+        self.backup_interval_spin.setFixedWidth(80)
+        auto_row.addWidget(self.backup_interval_spin)
+
+        auto_row.addSpacing(16)
+
+        self._keep_label = QLabel("保留备份数:")
+        self._keep_label.setStyleSheet(
+            f"color: {c.text_secondary}; font-size: 12px;"
+        )
+        auto_row.addWidget(self._keep_label)
+
+        self.backup_keep_spin = QSpinBox()
+        self.backup_keep_spin.setRange(1, 100)
+        self.backup_keep_spin.setValue(10)
+        self.backup_keep_spin.setFixedWidth(60)
+        auto_row.addWidget(self.backup_keep_spin)
+
+        self.cleanup_btn = QPushButton("清理旧备份")
+        self.cleanup_btn.clicked.connect(self._on_cleanup_backups)
+        auto_row.addWidget(self.cleanup_btn)
+
+        auto_row.addStretch()
+        backup_layout.addLayout(auto_row)
+
+        # Backup status label
+        self._backup_status_label = QLabel("")
+        self._backup_status_label.setStyleSheet(
+            f"color: {c.text_secondary}; font-size: 11px;"
+        )
+        backup_layout.addWidget(self._backup_status_label)
+
+        # Recent backups table
+        self._table_header = QLabel("最近备份:")
+        self._table_header.setStyleSheet(
+            f"color: {c.text_secondary}; font-size: 12px; padding-top: 4px;"
+        )
+        backup_layout.addWidget(self._table_header)
+
+        self.backup_table = QTableWidget()
+        self.backup_table.setColumnCount(5)
+        self.backup_table.setHorizontalHeaderLabels(["类型", "时间", "大小", "文件名", "操作"])
+        self.backup_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeToContents)
+        self.backup_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
+        self.backup_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeToContents)
+        self.backup_table.horizontalHeader().setSectionResizeMode(3, QHeaderView.Stretch)
+        self.backup_table.horizontalHeader().setSectionResizeMode(4, QHeaderView.ResizeToContents)
+        self.backup_table.setSelectionBehavior(QTableWidget.SelectRows)
+        self.backup_table.setEditTriggers(QTableWidget.NoEditTriggers)
+        self.backup_table.verticalHeader().setVisible(False)
+        self.backup_table.setMaximumHeight(200)
+        backup_layout.addWidget(self.backup_table)
+
+        # Refresh button
+        refresh_row = QHBoxLayout()
+        refresh_row.addStretch()
+        self.refresh_backups_btn = QPushButton("刷新列表")
+        self.refresh_backups_btn.clicked.connect(self._load_backup_list)
+        refresh_row.addWidget(self.refresh_backups_btn)
+        backup_layout.addLayout(refresh_row)
+
+        backup_group.setLayout(backup_layout)
+        layout.addWidget(backup_group)
+
         # Save button
         btn_row = QHBoxLayout()
         btn_row.addStretch()
@@ -318,10 +514,23 @@ class SettingsPanel(QWidget):
     def _on_advanced_toggled(self, state: int) -> None:
         self._advanced_widget.setVisible(state == Qt.Checked)
 
+    def _on_theme_changed(self, index: int) -> None:
+        """Apply theme immediately when combo changes."""
+        theme = "dark" if index == 0 else "light"
+        ThemeManager.apply(theme)
+
     def _load_settings(self) -> None:
         if not self.app or not self.app.config:
             return
         cfg = self.app.config
+
+        # Load theme preference
+        theme = cfg.get("ui.theme", "dark")
+        theme_index = 0 if theme == "dark" else 1
+        # Block signals to avoid triggering apply during load
+        self.theme_combo.blockSignals(True)
+        self.theme_combo.setCurrentIndex(theme_index)
+        self.theme_combo.blockSignals(False)
 
         # Determine provider type
         provider = cfg.get("ai.default_provider", "deepseek")
@@ -384,6 +593,10 @@ class SettingsPanel(QWidget):
             return
         cfg = self.app.config
 
+        # Save theme preference
+        theme = "dark" if self.theme_combo.currentIndex() == 0 else "light"
+        cfg.set("ui.theme", theme)
+
         # Determine selected provider
         type_id = self._type_group.checkedId()
         if type_id == 0:  # Cloud
@@ -440,5 +653,163 @@ class SettingsPanel(QWidget):
 
         cfg.save()
 
+        # Save backup settings
+        cfg.set("backup.enabled", self.backup_enabled_check.isChecked())
+        cfg.set("backup.interval_hours", self.backup_interval_spin.value())
+        cfg.set("backup.max_backups", self.backup_keep_spin.value())
+
         # Emit signal to update chat panel
         self.settings_saved.emit()
+
+    # --- Backup Methods ---
+
+    def set_backup_manager(self, backup_mgr) -> None:
+        """Receive the BackupManager instance."""
+        self._backup_mgr = backup_mgr
+        self._load_backup_settings()
+        self._load_backup_list()
+
+    def _load_backup_settings(self) -> None:
+        """Load backup settings from config into UI."""
+        if not self.app or not self.app.config:
+            return
+        cfg = self.app.config
+
+        self.backup_enabled_check.setChecked(cfg.get("backup.enabled", True))
+        self.backup_interval_spin.setValue(cfg.get("backup.interval_hours", 24))
+        self.backup_keep_spin.setValue(cfg.get("backup.max_backups", 10))
+        self.backup_dir_display.setText(cfg.get("backup.directory", "data/backups"))
+
+    def _on_backup_now(self) -> None:
+        """Trigger immediate backup of both database and config."""
+        if not self._backup_mgr:
+            self._backup_status_label.setText("备份管理器未初始化")
+            return
+
+        self.backup_now_btn.setEnabled(False)
+        self._backup_status_label.setText("正在备份...")
+
+        async def do_backup():
+            try:
+                result = await self._backup_mgr.backup_all()
+                db_ok = result.get("database", {}).get("success", False)
+                cfg_ok = result.get("config", {}).get("success", False)
+
+                if db_ok and cfg_ok:
+                    self._backup_status_label.setText("备份完成 ✓")
+                elif db_ok:
+                    self._backup_status_label.setText(
+                        f"数据库备份成功，配置备份失败: {result.get('config', {}).get('error', '')}"
+                    )
+                elif cfg_ok:
+                    self._backup_status_label.setText(
+                        f"配置备份成功，数据库备份失败: {result.get('database', {}).get('error', '')}"
+                    )
+                else:
+                    self._backup_status_label.setText(
+                        f"备份失败: {result.get('database', {}).get('error', '未知错误')}"
+                    )
+
+                # Also do cleanup
+                await self._backup_mgr.cleanup_old_backups()
+
+                # Refresh the list
+                self._load_backup_list()
+            except Exception as e:
+                self._backup_status_label.setText(f"备份出错: {e}")
+            finally:
+                self.backup_now_btn.setEnabled(True)
+
+        asyncio.ensure_future(do_backup())
+
+    def _on_cleanup_backups(self) -> None:
+        """Clean up old backups beyond the configured keep count."""
+        if not self._backup_mgr:
+            return
+
+        async def do_cleanup():
+            try:
+                keep = self.backup_keep_spin.value()
+                result = await self._backup_mgr.cleanup_old_backups(keep_count=keep)
+                removed = result.get("removed", 0)
+                self._backup_status_label.setText(f"已清理 {removed} 个旧备份")
+                self._load_backup_list()
+            except Exception as e:
+                self._backup_status_label.setText(f"清理出错: {e}")
+
+        asyncio.ensure_future(do_cleanup())
+
+    def _load_backup_list(self) -> None:
+        """Load and display the list of available backups."""
+        if not self._backup_mgr:
+            return
+
+        c = ThemeManager.get_colors()
+        backups = self._backup_mgr.list_backups()
+        self.backup_table.setRowCount(len(backups))
+
+        for row, bk in enumerate(backups):
+            # Type
+            type_text = "数据库" if bk["type"] == "database" else "配置"
+            type_item = QTableWidgetItem(type_text)
+            type_item.setTextAlignment(Qt.AlignCenter)
+            self.backup_table.setItem(row, 0, type_item)
+
+            # Time
+            time_item = QTableWidgetItem(bk["display_time"])
+            time_item.setTextAlignment(Qt.AlignCenter)
+            self.backup_table.setItem(row, 1, time_item)
+
+            # Size
+            size_item = QTableWidgetItem(bk["size_formatted"])
+            size_item.setTextAlignment(Qt.AlignCenter)
+            self.backup_table.setItem(row, 2, size_item)
+
+            # Filename
+            self.backup_table.setItem(row, 3, QTableWidgetItem(bk["filename"]))
+
+            # Restore button
+            restore_btn = QPushButton("恢复")
+            restore_btn.setFixedWidth(60)
+            restore_btn.setStyleSheet(
+                f"QPushButton {{ background-color: {c.btn_secondary_bg}; color: {c.btn_secondary_text}; "
+                f"border: 1px solid {c.btn_secondary_border}; border-radius: 4px; padding: 2px 8px; }}"
+                f"QPushButton:hover {{ background-color: {c.btn_secondary_hover_bg}; color: {c.btn_secondary_hover_text}; }}"
+            )
+            restore_btn.clicked.connect(
+                lambda checked, path=bk["path"], btype=bk["type"]: self._on_restore(path, btype)
+            )
+            self.backup_table.setCellWidget(row, 4, restore_btn)
+
+    def _on_restore(self, backup_path: str, backup_type: str) -> None:
+        """Restore from a specific backup with confirmation."""
+        msg = QMessageBox()
+        msg.setIcon(QMessageBox.Warning)
+        msg.setWindowTitle("确认恢复")
+        msg.setText(f"确定要从此备份恢复{'数据库' if backup_type == 'database' else '配置文件'}吗？")
+        msg.setInformativeText("当前文件将在恢复前自动备份。")
+        msg.setStandardButtons(QMessageBox.Ok | QMessageBox.Cancel)
+        msg.setDefaultButton(QMessageBox.Cancel)
+
+        if msg.exec() != QMessageBox.Ok:
+            return
+
+        self._backup_status_label.setText("正在恢复...")
+
+        async def do_restore():
+            try:
+                if backup_type == "database":
+                    result = await self._backup_mgr.restore_database(backup_path)
+                else:
+                    result = await self._backup_mgr.restore_config(backup_path)
+
+                if result.get("success"):
+                    self._backup_status_label.setText(result["message"] + " ✓")
+                else:
+                    self._backup_status_label.setText(f"恢复失败: {result.get('error', '')}")
+
+                self._load_backup_list()
+            except Exception as e:
+                self._backup_status_label.setText(f"恢复出错: {e}")
+
+        asyncio.ensure_future(do_restore())

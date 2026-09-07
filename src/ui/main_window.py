@@ -7,9 +7,10 @@ from PySide6.QtGui import QIcon, QFont, QPainter, QColor, QPixmap
 from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QStackedWidget, QStatusBar, QLabel, QButtonGroup,
-    QPushButton, QFrame, QSizePolicy, QSpacerItem,
+    QPushButton, QFrame, QSizePolicy, QSpacerItem, QToolButton,
 )
 
+from .styles import ThemeManager
 from .chat_panel import ChatPanel
 from .document_panel import DocumentPanel
 from .search_panel import SearchPanel
@@ -17,23 +18,18 @@ from .diary_panel import DiaryPanel
 from .knowledge_panel import KnowledgePanel
 from .settings_panel import SettingsPanel
 from .chat_reader_panel import ChatReaderPanel
+from .icons import get_nav_icons
+from src.storage.dao import DAO
 
 
-# Navigation items: (icon_char, label, tooltip)
-_NAV_ITEMS = [
-    ("💬", "对话", "AI 对话"),
-    ("🔍", "搜索", "网络 / 本地搜索"),
-    ("📄", "文档", "文档解析与总结"),
-    ("📖", "监控", "聊天消息监控"),
-    ("📝", "日记", "日记与笔记"),
-    ("📚", "知识", "知识库"),
-    ("⚙", "设置", "应用设置"),
-]
-
-
-def _make_nav_button(icon_text: str, label: str, tooltip: str) -> QPushButton:
-    btn = QPushButton(f"{icon_text}\n{label}")
+def _make_nav_button(icon: QIcon, label: str, tooltip: str) -> QToolButton:
+    """Create a sidebar navigation button with icon above text."""
+    btn = QToolButton()
+    btn.setIcon(icon)
+    btn.setText(label)
     btn.setToolTip(tooltip)
+    btn.setToolButtonStyle(Qt.ToolButtonTextUnderIcon)
+    btn.setIconSize(QSize(22, 22))
     btn.setCheckable(True)
     btn.setFixedWidth(72)
     btn.setMinimumHeight(56)
@@ -82,10 +78,10 @@ class MainWindow(QMainWindow):
         # Nav buttons
         self._nav_group = QButtonGroup(self)
         self._nav_group.setExclusive(True)
-        self._nav_buttons: list[QPushButton] = []
+        self._nav_buttons: list[QToolButton] = []
 
-        for icon_text, label, tooltip in _NAV_ITEMS:
-            btn = _make_nav_button(icon_text, label, tooltip)
+        for icon, label, tooltip in get_nav_icons():
+            btn = _make_nav_button(icon, label, tooltip)
             self._nav_group.addButton(btn)
             self._nav_buttons.append(btn)
             sidebar_layout.addWidget(btn)
@@ -95,7 +91,8 @@ class MainWindow(QMainWindow):
         # Sidebar version label
         ver = QLabel("v0.1")
         ver.setAlignment(Qt.AlignCenter)
-        ver.setStyleSheet("color: #444460; font-size: 10px;")
+        self._ver_label = ver
+        ver.setStyleSheet(f"color: {ThemeManager.color('text_hint')}; font-size: 10px;")
         sidebar_layout.addWidget(ver)
 
         root_layout.addWidget(sidebar)
@@ -146,6 +143,24 @@ class MainWindow(QMainWindow):
 
         # Initial load of models for chat panel
         self.chat_panel.load_models_from_config()
+
+        # Register main window for theme refresh
+        ThemeManager.register_panel(self)
+
+    def _apply_theme(self) -> None:
+        """Update main window inline styles when theme changes."""
+        c = ThemeManager.get_colors()
+        self._ver_label.setStyleSheet(f"color: {c.text_hint}; font-size: 10px;")
+
+    def set_dao(self, dao: DAO) -> None:
+        """Pass the DAO instance to panels that need database access."""
+        self.chat_panel.set_dao(dao)
+        self.diary_panel.set_dao(dao)
+        self.knowledge_panel.set_dao(dao)
+
+    def set_backup_manager(self, backup_mgr) -> None:
+        """Pass the BackupManager instance to the settings panel."""
+        self.settings_panel.set_backup_manager(backup_mgr)
 
     def _switch_page(self, index: int) -> None:
         self._stack.setCurrentIndex(index)
