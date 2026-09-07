@@ -12,6 +12,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtGui import QFont
 
+from .styles import ThemeManager
 from .widgets.message_bubble import MessageBubble
 from .widgets.streaming_text import StreamingTextWidget
 from ..ai.models import (
@@ -19,6 +20,7 @@ from ..ai.models import (
     get_all_model_strings, get_default_model,
 )
 from ..ai.prompts import build_chat_messages
+from ..storage.dao import DAO
 
 
 class ChatPanel(QWidget):
@@ -28,8 +30,22 @@ class ChatPanel(QWidget):
         super().__init__(parent)
         self.app = app
         self._ai_engine = None
+        self._dao: DAO | None = None
         self._messages: list[dict] = []
         self._setup_ui()
+        ThemeManager.register_panel(self)
+
+    def _apply_theme(self) -> None:
+        c = ThemeManager.get_colors()
+        self._model_label.setStyleSheet(
+            f"color: {c.text_secondary}; font-size: 12px;"
+        )
+        self._divider.setStyleSheet(
+            f"background-color: {c.divider}; max-height: 1px;"
+        )
+        self._welcome_label.setStyleSheet(
+            f"color: {c.text_disabled}; font-size: 15px; padding: 60px 0;"
+        )
 
     def set_ai_engine(self, engine) -> None:
         self._ai_engine = engine
@@ -37,7 +53,13 @@ class ChatPanel(QWidget):
         engine.response_done.connect(self._on_response_done)
         engine.error.connect(self._on_error)
 
+    def set_dao(self, dao: DAO) -> None:
+        """Accept DAO instance and load persisted chat history."""
+        self._dao = dao
+        asyncio.ensure_future(self._load_history())
+
     def _setup_ui(self) -> None:
+        c = ThemeManager.get_colors()
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
@@ -46,9 +68,9 @@ class ChatPanel(QWidget):
         top_bar = QHBoxLayout()
         top_bar.setContentsMargins(16, 10, 16, 8)
 
-        model_label = QLabel("模型")
-        model_label.setStyleSheet("color: #8888a0; font-size: 12px;")
-        top_bar.addWidget(model_label)
+        self._model_label = QLabel("模型")
+        self._model_label.setStyleSheet(f"color: {c.text_secondary}; font-size: 12px;")
+        top_bar.addWidget(self._model_label)
 
         self.model_combo = QComboBox()
         self.model_combo.setFixedWidth(300)
@@ -67,10 +89,10 @@ class ChatPanel(QWidget):
         layout.addLayout(top_bar)
 
         # Divider
-        divider = QFrame()
-        divider.setFrameShape(QFrame.HLine)
-        divider.setStyleSheet("background-color: #2a2a3e; max-height: 1px;")
-        layout.addWidget(divider)
+        self._divider = QFrame()
+        self._divider.setFrameShape(QFrame.HLine)
+        self._divider.setStyleSheet(f"background-color: {c.divider}; max-height: 1px;")
+        layout.addWidget(self._divider)
 
         # --- Messages area ---
         self.scroll_area = QScrollArea()
@@ -87,7 +109,7 @@ class ChatPanel(QWidget):
         # Welcome message
         welcome = QLabel("你好！有什么我可以帮忙的？")
         welcome.setAlignment(Qt.AlignCenter)
-        welcome.setStyleSheet("color: #555570; font-size: 15px; padding: 60px 0;")
+        welcome.setStyleSheet(f"color: {c.text_disabled}; font-size: 15px; padding: 60px 0;")
         self._welcome_label = welcome
         self.messages_layout.insertWidget(0, welcome)
 
@@ -172,6 +194,13 @@ class ChatPanel(QWidget):
         self._add_message(text, is_user=True)
         self._messages.append({"role": "user", "content": text})
 
+        # Persist user message to database
+        if self._dao:
+            model = self.model_combo.currentData() or ""
+            asyncio.ensure_future(
+                self._dao.insert_chat_history("user", text, model=model)
+            )
+
         if self._ai_engine:
             self._hide_welcome()
             self.streaming_widget.clear()
@@ -215,6 +244,13 @@ class ChatPanel(QWidget):
             self._add_message(full_text, is_user=False)
             self._messages.append({"role": "assistant", "content": full_text})
 
+            # Persist assistant response to database
+            if self._dao:
+                model = self.model_combo.currentData() or ""
+                asyncio.ensure_future(
+                    self._dao.insert_chat_history("assistant", full_text, model=model)
+                )
+
     @Slot(str)
     def _on_error(self, error: str) -> None:
         self.streaming_widget.hide()
@@ -234,3 +270,30 @@ class ChatPanel(QWidget):
                 widget.deleteLater()
         if self._welcome_label:
             self._welcome_label.show()
+        # Also clear persisted history
+        if self._dao:
+            asyncio.ensure_future(self._dao.clear_chat_history())
+
+    async def _load_history(self, limit: int = 50) -> None:
+        """Load recent chat history from database and display it."""
+        if self._dao is None:
+            return
+        try:
+            rows = await self._dao.get_chat_history(limit=limit)
+            if not rows:
+                return
+
+            # Hide welcome label when we have history
+            self._hide_welcome()
+
+            # Rebuild in-memory message list and display bubbles
+            for row in rows:
+                role = row.get("role", "")
+                content = row.get("content", "")
+                if not content:
+                    continue
+                is_user = role == "user"
+                self._messages.append({"role": role, "content": content})
+                self._add_message(content, is_user=is_user)
+        except Exception as e:
+            print(f"[ChatPanel] Failed to load chat history: {e}")

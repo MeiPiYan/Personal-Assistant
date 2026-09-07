@@ -1,15 +1,16 @@
 from __future__ import annotations
 
 import asyncio
+import math
 from pathlib import Path
 
-from PySide6.QtCore import Qt, QPoint, QTimer, Signal
-from PySide6.QtGui import QPainter, QColor, QFont, QPen, QBrush
+from PySide6.QtCore import Qt, QPoint, QTimer, Signal, QRectF
+from PySide6.QtGui import QPainter, QColor, QFont, QPen, QBrush, QPainterPath
 from PySide6.QtWidgets import QWidget
 
 
 class FloatingBall(QWidget):
-    """48px draggable always-on-top floating overlay."""
+    """48px draggable always-on-top floating overlay with app icon."""
 
     clicked = Signal()
     right_clicked = Signal(QPoint)
@@ -43,7 +44,6 @@ class FloatingBall(QWidget):
         radius = self._size // 2 - 2
 
         # Outer glow pulse
-        import math
         pulse = (math.sin(self._pulse_angle) + 1) / 2
         glow_color = QColor(99, 102, 241, int(40 + 30 * pulse))
         painter.setPen(Qt.NoPen)
@@ -55,14 +55,44 @@ class FloatingBall(QWidget):
         painter.setPen(QPen(QColor(129, 140, 248, 180), 1.5))
         painter.drawEllipse(center, radius, radius)
 
-        # "AI" text
-        painter.setPen(QColor(255, 255, 255))
-        font = QFont("Segoe UI", int(self._size * 0.3), QFont.Bold)
-        painter.setFont(font)
-        painter.drawText(self.rect(), Qt.AlignCenter, "AI")
+        # Draw mini speech-bubble icon inside the circle
+        self._draw_mini_icon(painter)
+
+        painter.end()
+
+    def _draw_mini_icon(self, painter: QPainter) -> None:
+        """Draw a small speech-bubble icon centered in the ball."""
+        s = self._size / 48.0  # scale relative to nominal 48px
+        cx = self._size / 2.0
+        cy = self._size / 2.0
+
+        painter.setPen(QPen(QColor(255, 255, 255, 220), 1.8 * s, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
+        painter.setBrush(Qt.NoBrush)
+
+        # Speech bubble body
+        bx = cx - 9 * s
+        by = cy - 8 * s
+        bw = 18 * s
+        bh = 12 * s
+        painter.drawRoundedRect(QRectF(bx, by, bw, bh), 3 * s, 3 * s)
+
+        # Tail (triangle pointing down-left)
+        tail = [
+            QPoint(int(cx - 5 * s), int(cy + 4 * s)),
+            QPoint(int(cx - 8 * s), int(cy + 10 * s)),
+            QPoint(int(cx - 1 * s), int(cy + 4 * s)),
+        ]
+        painter.setPen(QPen(QColor(255, 255, 255, 220), 1.8 * s, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
+        painter.drawPolygon(tail)
+
+        # Two small dots inside the bubble
+        painter.setPen(Qt.NoPen)
+        painter.setBrush(QBrush(QColor(255, 255, 255, 200)))
+        dot_r = 1.5 * s
+        painter.drawEllipse(QPointF(cx - 3 * s, cy - 2 * s), dot_r, dot_r)
+        painter.drawEllipse(QPointF(cx + 3 * s, cy - 2 * s), dot_r, dot_r)
 
     def _pulse_tick(self) -> None:
-        import math
         self._pulse_angle += 0.1
         if self._pulse_angle > 2 * math.pi:
             self._pulse_angle -= 2 * math.pi

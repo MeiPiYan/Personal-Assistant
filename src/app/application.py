@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (
 )
 
 from .config import Config
+from src.ui.icons import tray_icon
 
 
 class AppSignals(QObject):
@@ -38,14 +39,8 @@ class Application:
 
     def setup_tray(self) -> None:
         self._tray = QSystemTrayIcon(self.app)
-        icon_path = Path(__file__).parent.parent.parent / "resources" / "icons"
-        icon_file = icon_path / "tray_icon.png"
-        if icon_file.exists():
-            self._tray.setIcon(QIcon(str(icon_file)))
-        else:
-            self._tray.setIcon(self.app.style().standardIcon(
-                self.app.style().StandardPixmap.SP_ComputerIcon
-            ))
+        # Use custom tray icon from the icon module
+        self._tray.setIcon(tray_icon())
         self._tray.setToolTip("AI Assistant")
 
         menu = QMenu()

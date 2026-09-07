@@ -34,9 +34,8 @@ data/
 # wechatauto cache
 .wechatauto/
 
-# Config with secrets
+# Config with secrets (contains API keys)
 config/settings.yaml
-!config/settings.yaml
 
 # Test outputs
 test_output/

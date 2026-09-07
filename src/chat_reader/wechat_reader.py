@@ -6,7 +6,7 @@ from datetime import datetime
 from PySide6.QtCore import Signal
 
 from .base import ChatReaderBase
-from .models import ChatMessage
+from ..storage.models import ChatMessage
 
 
 class WeChatReader(ChatReaderBase):
