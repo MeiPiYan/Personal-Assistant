@@ -73,3 +73,11 @@ ui:
 storage:
   db_path: "data/assistant.db"
   backup_enabled: false
+
+# Backup
+backup:
+  enabled: true
+  directory: "data/backups"
+  auto_on_startup: true
+  interval_hours: 24
+  max_backups: 10
