@@ -216,7 +216,7 @@ QLineEdit, QTextEdit, QPlainTextEdit {
     color: #e0e0e0;
     border: 1px solid #2a2a3e;
     border-radius: 8px;
-    padding: 8px 12px;
+    padding: 6px 12px;
     selection-background-color: #4f46e5;
 }
 
@@ -232,9 +232,10 @@ QLineEdit {
 QPushButton {
     background-color: #4f46e5;
     color: white;
-    border: none;
+    border: 1px solid transparent;
     border-radius: 8px;
-    padding: 8px 20px;
+    padding: 6px 14px;
+    min-height: 20px;
     font-weight: 500;
 }
 
@@ -296,6 +297,115 @@ QComboBox QAbstractItemView {
     selection-background-color: #2a2a48;
     border-radius: 8px;
     padding: 4px;
+}
+
+/* === Spin Box === */
+QSpinBox, QDoubleSpinBox {
+    background-color: #1a1a2e;
+    color: #e0e0e0;
+    border: 1px solid #2a2a3e;
+    border-radius: 8px;
+    padding: 6px 12px;
+    /* 17 + 12 padding + 2 border + 3 intrinsic spin metrics = 34px, matches QLineEdit */
+    min-height: 17px;
+    selection-background-color: #4f46e5;
+}
+
+QSpinBox:hover, QDoubleSpinBox:hover {
+    border-color: #4f46e5;
+}
+
+QSpinBox:focus, QDoubleSpinBox:focus {
+    border: 1px solid #4f46e5;
+}
+
+QSpinBox::up-button, QDoubleSpinBox::up-button {
+    subcontrol-origin: border;
+    subcontrol-position: top right;
+    border: none;
+    border-left: 1px solid #2a2a3e;
+    border-top-right-radius: 8px;
+    width: 20px;
+    background-color: transparent;
+}
+
+QSpinBox::down-button, QDoubleSpinBox::down-button {
+    subcontrol-origin: border;
+    subcontrol-position: bottom right;
+    border: none;
+    border-left: 1px solid #2a2a3e;
+    border-bottom-right-radius: 8px;
+    width: 20px;
+    background-color: transparent;
+}
+
+QSpinBox::up-button:hover, QDoubleSpinBox::up-button:hover,
+QSpinBox::down-button:hover, QDoubleSpinBox::down-button:hover {
+    background-color: #2a2a48;
+}
+
+QSpinBox::up-arrow, QDoubleSpinBox::up-arrow {
+    width: 0;
+    height: 0;
+    border-left: 4px solid transparent;
+    border-right: 4px solid transparent;
+    border-bottom: 5px solid #8888a0;
+}
+
+QSpinBox::down-arrow, QDoubleSpinBox::down-arrow {
+    width: 0;
+    height: 0;
+    border-left: 4px solid transparent;
+    border-right: 4px solid transparent;
+    border-top: 5px solid #8888a0;
+}
+
+QSpinBox::up-arrow:hover, QDoubleSpinBox::up-arrow:hover {
+    border-bottom-color: #818cf8;
+}
+
+QSpinBox::down-arrow:hover, QDoubleSpinBox::down-arrow:hover {
+    border-top-color: #818cf8;
+}
+
+/* === Table === */
+QTableWidget {
+    background-color: #161622;
+    alternate-background-color: #1a1a2e;
+    color: #c8c8e0;
+    border: 1px solid #2a2a3e;
+    border-radius: 8px;
+    gridline-color: #2a2a3e;
+    selection-background-color: #2a2a48;
+    selection-color: #e0e0e0;
+}
+
+QTableWidget::item {
+    padding: 4px 8px;
+}
+
+QTableWidget::item:selected {
+    background-color: #2a2a48;
+}
+
+QHeaderView {
+    background-color: #161622;
+    border: none;
+}
+
+QHeaderView::section {
+    background-color: #1e1e32;
+    color: #8888a0;
+    border: none;
+    border-bottom: 1px solid #2a2a3e;
+    border-right: 1px solid #2a2a3e;
+    padding: 6px 8px;
+    font-weight: bold;
+}
+
+QTableCornerButton::section {
+    background-color: #1e1e32;
+    border: none;
 }
 
 /* === Scroll Bar === */
@@ -456,7 +566,8 @@ QWidget {
     border-right: 1px solid #e0e0e0;
 }
 
-#sidebar QPushButton {
+#sidebar QPushButton,
+#sidebar QToolButton {
     background-color: transparent;
     color: #888888;
     border: none;
@@ -467,12 +578,14 @@ QWidget {
     min-height: 36px;
 }
 
-#sidebar QPushButton:hover {
+#sidebar QPushButton:hover,
+#sidebar QToolButton:hover {
     background-color: #f0f0f5;
     color: #555555;
 }
 
-#sidebar QPushButton:checked {
+#sidebar QPushButton:checked,
+#sidebar QToolButton:checked {
     background-color: #eef2ff;
     color: #4f46e5;
 }
@@ -495,7 +608,7 @@ QLineEdit, QTextEdit, QPlainTextEdit {
     color: #333333;
     border: 1px solid #d0d0d0;
     border-radius: 8px;
-    padding: 8px 12px;
+    padding: 6px 12px;
     selection-background-color: #4f46e5;
 }
 
@@ -511,9 +624,10 @@ QLineEdit {
 QPushButton {
     background-color: #4f46e5;
     color: white;
-    border: none;
+    border: 1px solid transparent;
     border-radius: 8px;
-    padding: 8px 20px;
+    padding: 6px 14px;
+    min-height: 20px;
     font-weight: 500;
 }
 
@@ -575,6 +689,115 @@ QComboBox QAbstractItemView {
     selection-background-color: #eef2ff;
     border-radius: 8px;
     padding: 4px;
+}
+
+/* === Spin Box === */
+QSpinBox, QDoubleSpinBox {
+    background-color: #ffffff;
+    color: #333333;
+    border: 1px solid #d0d0d0;
+    border-radius: 8px;
+    padding: 6px 12px;
+    /* 17 + 12 padding + 2 border + 3 intrinsic spin metrics = 34px, matches QLineEdit */
+    min-height: 17px;
+    selection-background-color: #4f46e5;
+}
+
+QSpinBox:hover, QDoubleSpinBox:hover {
+    border-color: #4f46e5;
+}
+
+QSpinBox:focus, QDoubleSpinBox:focus {
+    border: 1px solid #4f46e5;
+}
+
+QSpinBox::up-button, QDoubleSpinBox::up-button {
+    subcontrol-origin: border;
+    subcontrol-position: top right;
+    border: none;
+    border-left: 1px solid #d0d0d0;
+    border-top-right-radius: 8px;
+    width: 20px;
+    background-color: transparent;
+}
+
+QSpinBox::down-button, QDoubleSpinBox::down-button {
+    subcontrol-origin: border;
+    subcontrol-position: bottom right;
+    border: none;
+    border-left: 1px solid #d0d0d0;
+    border-bottom-right-radius: 8px;
+    width: 20px;
+    background-color: transparent;
+}
+
+QSpinBox::up-button:hover, QDoubleSpinBox::up-button:hover,
+QSpinBox::down-button:hover, QDoubleSpinBox::down-button:hover {
+    background-color: #f0f0f5;
+}
+
+QSpinBox::up-arrow, QDoubleSpinBox::up-arrow {
+    width: 0;
+    height: 0;
+    border-left: 4px solid transparent;
+    border-right: 4px solid transparent;
+    border-bottom: 5px solid #888888;
+}
+
+QSpinBox::down-arrow, QDoubleSpinBox::down-arrow {
+    width: 0;
+    height: 0;
+    border-left: 4px solid transparent;
+    border-right: 4px solid transparent;
+    border-top: 5px solid #888888;
+}
+
+QSpinBox::up-arrow:hover, QDoubleSpinBox::up-arrow:hover {
+    border-bottom-color: #4f46e5;
+}
+
+QSpinBox::down-arrow:hover, QDoubleSpinBox::down-arrow:hover {
+    border-top-color: #4f46e5;
+}
+
+/* === Table === */
+QTableWidget {
+    background-color: #ffffff;
+    alternate-background-color: #f5f5f5;
+    color: #444444;
+    border: 1px solid #d0d0d0;
+    border-radius: 8px;
+    gridline-color: #e0e0e0;
+    selection-background-color: #eef2ff;
+    selection-color: #333333;
+}
+
+QTableWidget::item {
+    padding: 4px 8px;
+}
+
+QTableWidget::item:selected {
+    background-color: #eef2ff;
+}
+
+QHeaderView {
+    background-color: #ffffff;
+    border: none;
+}
+
+QHeaderView::section {
+    background-color: #f5f5f5;
+    color: #888888;
+    border: none;
+    border-bottom: 1px solid #d0d0d0;
+    border-right: 1px solid #e0e0e0;
+    padding: 6px 8px;
+    font-weight: bold;
+}
+
+QTableCornerButton::section {
+    background-color: #f5f5f5;
+    border: none;
 }
 
 /* === Scroll Bar === */

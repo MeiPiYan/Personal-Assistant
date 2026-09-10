@@ -60,7 +60,7 @@ class KnowledgePanel(QWidget):
 
         self.category_combo = QComboBox()
         self.category_combo.addItems(["全部", "技术", "工作", "生活", "学习", "其他"])
-        self.category_combo.setFixedWidth(80)
+        self.category_combo.setFixedWidth(88)
         add_row.addWidget(self.category_combo)
 
         self.add_btn = QPushButton("添加")
