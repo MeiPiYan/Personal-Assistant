@@ -10,7 +10,6 @@ dependencies = [
     "markdown>=3.5",
 
     # AI
-    "litellm>=1.40",
 
     # Chat Readers
     "wechatauto-replica>=1.2",
@@ -37,7 +36,7 @@ dependencies = [
 ]
 
 [project.scripts]
-ai-assistant = "src.main:main"
+ai-assistant = "main:main"
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
@@ -45,4 +44,4 @@ testpaths = ["tests"]
 
 [build-system]
 requires = ["setuptools>=68.0"]
-build-backend = "setuptools.backends._legacy:_Backend"
+build-backend = "setuptools.build_meta"

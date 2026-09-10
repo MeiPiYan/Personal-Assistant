@@ -213,7 +213,7 @@ class SettingsPanel(QWidget):
             # Model combo
             model_combo = QComboBox()
             model_combo.setEditable(True)
-            model_combo.setFixedWidth(280)
+            model_combo.setMinimumWidth(280)
             for model_id, display_name, _ in PROVIDER_MODELS.get(provider, []):
                 model_combo.addItem(display_name, model_id)
             form.addRow("默认模型:", model_combo)
@@ -276,7 +276,7 @@ class SettingsPanel(QWidget):
             "qwen2.5",
             "deepseek-coder-v2",
         ])
-        self.ollama_model.setFixedWidth(200)
+        self.ollama_model.setMinimumWidth(280)
         local_form.addRow("默认模型:", self.ollama_model)
 
         local_layout.addLayout(local_form)
@@ -321,7 +321,7 @@ class SettingsPanel(QWidget):
         self.custom_model = QComboBox()
         self.custom_model.setEditable(True)
         self.custom_model.setPlaceholderText("输入模型名称")
-        self.custom_model.setFixedWidth(200)
+        self.custom_model.setMinimumWidth(280)
         custom_form.addRow("默认模型:", self.custom_model)
 
         custom_layout.addLayout(custom_form)
@@ -398,7 +398,7 @@ class SettingsPanel(QWidget):
 
         self.backup_dir_display = QLineEdit()
         self.backup_dir_display.setReadOnly(True)
-        self.backup_dir_display.setFixedWidth(200)
+        self.backup_dir_display.setMinimumWidth(200)
         self.backup_dir_display.setStyleSheet(
             f"color: {c.text_secondary}; font-size: 12px;"
         )
@@ -425,7 +425,7 @@ class SettingsPanel(QWidget):
         self.backup_interval_spin.setRange(1, 720)
         self.backup_interval_spin.setValue(24)
         self.backup_interval_spin.setSuffix(" h")
-        self.backup_interval_spin.setFixedWidth(80)
+        self.backup_interval_spin.setMinimumWidth(80)
         auto_row.addWidget(self.backup_interval_spin)
 
         auto_row.addSpacing(16)
@@ -439,7 +439,7 @@ class SettingsPanel(QWidget):
         self.backup_keep_spin = QSpinBox()
         self.backup_keep_spin.setRange(1, 100)
         self.backup_keep_spin.setValue(10)
-        self.backup_keep_spin.setFixedWidth(60)
+        self.backup_keep_spin.setMinimumWidth(70)
         auto_row.addWidget(self.backup_keep_spin)
 
         self.cleanup_btn = QPushButton("清理旧备份")
@@ -651,12 +651,13 @@ class SettingsPanel(QWidget):
         cfg.set("chat_reader.qq.enabled", self.qq_enabled.isChecked())
         cfg.set("chat_reader.qq.napcat_url", self.napcat_url.text())
 
-        cfg.save()
-
-        # Save backup settings
+        # Backup settings
         cfg.set("backup.enabled", self.backup_enabled_check.isChecked())
         cfg.set("backup.interval_hours", self.backup_interval_spin.value())
         cfg.set("backup.max_backups", self.backup_keep_spin.value())
+
+        # Persist everything in one write
+        cfg.save()
 
         # Emit signal to update chat panel
         self.settings_saved.emit()

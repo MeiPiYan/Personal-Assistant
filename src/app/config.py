@@ -28,13 +28,17 @@ class Config:
     def _defaults(self) -> dict:
         return {
             "ai": {
-                "default_provider": "openai",
-                "default_model": "gpt-4o",
+                "default_provider": "deepseek",
+                "default_model": "deepseek-chat",
                 "max_tokens": 4096,
                 "temperature": 0.7,
                 "providers": {
                     "openai": {"api_key": "", "base_url": None},
-                    "anthropic": {"api_key": ""},
+                    "deepseek": {"api_key": "", "model": "deepseek-chat"},
+                    "siliconflow": {"api_key": "", "model": "deepseek-ai/DeepSeek-V3"},
+                    "anthropic": {"api_key": "", "model": "claude-sonnet-4-20250514"},
+                    "gemini": {"api_key": "", "model": "gemini-2.0-flash"},
+                    "groq": {"api_key": "", "model": "llama-3.3-70b-versatile"},
                     "ollama": {"base_url": "http://localhost:11434", "model": "llama3.1"},
                     "custom": {"base_url": "", "api_key": "", "model": ""},
                 },

@@ -17,7 +17,14 @@ class DAO:
             (msg.platform, msg.sender, msg.group_name, msg.content, msg.msg_type, msg.raw_data),
         )
         await self.db.connection.commit()
-        return cursor.lastrowid
+        rowid = cursor.lastrowid
+        # Keep the FTS index in sync with the base table so full-text search works.
+        await self.db.connection.execute(
+            "INSERT INTO messages_fts (rowid, content, sender) VALUES (?, ?, ?)",
+            (rowid, msg.content, msg.sender),
+        )
+        await self.db.connection.commit()
+        return rowid
 
     async def get_messages(self, platform: str = None, limit: int = 50) -> list[dict]:
         if platform:
@@ -50,7 +57,14 @@ class DAO:
             (entry.content, entry.summary, tags_json, entry.mood),
         )
         await self.db.connection.commit()
-        return cursor.lastrowid
+        rowid = cursor.lastrowid
+        # Keep the FTS index in sync with the base table so full-text search works.
+        await self.db.connection.execute(
+            "INSERT INTO diary_fts (rowid, content, summary, tags) VALUES (?, ?, ?, ?)",
+            (rowid, entry.content, entry.summary, tags_json),
+        )
+        await self.db.connection.commit()
+        return rowid
 
     async def get_diaries(self, limit: int = 30) -> list[dict]:
         cursor = await self.db.connection.execute(
@@ -78,7 +92,14 @@ class DAO:
             (item.title, item.content, item.source_url, item.source_type, item.category, tags_json),
         )
         await self.db.connection.commit()
-        return cursor.lastrowid
+        rowid = cursor.lastrowid
+        # Keep the FTS index in sync with the base table so full-text search works.
+        await self.db.connection.execute(
+            "INSERT INTO knowledge_fts (rowid, title, content, tags) VALUES (?, ?, ?, ?)",
+            (rowid, item.title, item.content, tags_json),
+        )
+        await self.db.connection.commit()
+        return rowid
 
     async def get_knowledge(self, limit: int = 30) -> list[dict]:
         cursor = await self.db.connection.execute(

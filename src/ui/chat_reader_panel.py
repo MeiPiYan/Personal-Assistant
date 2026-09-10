@@ -77,7 +77,7 @@ class ChatReaderPanel(QWidget):
 
         self.refresh_btn = QPushButton("刷新")
         self.refresh_btn.setObjectName("secondaryBtn")
-        self.refresh_btn.setFixedWidth(56)
+        self.refresh_btn.setFixedWidth(64)
         self.refresh_btn.clicked.connect(self._on_refresh_sessions)
         ctrl_row.addWidget(self.refresh_btn)
 

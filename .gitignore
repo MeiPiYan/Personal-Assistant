@@ -34,6 +34,9 @@ data/
 # wechatauto cache
 .wechatauto/
 
+# Local tool config
+.zcode/
+
 # Config with secrets (contains API keys)
 config/settings.yaml
 
