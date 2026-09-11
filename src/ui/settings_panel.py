@@ -603,17 +603,17 @@ class SettingsPanel(QWidget):
             provider_idx = self.cloud_provider_combo.currentIndex()
             provider = CLOUD_PROVIDERS[provider_idx]
 
-            # Save the selected provider's config
-            config = self._provider_configs.get(provider)
-            if config:
+            # Save every cloud provider's config so values entered on other
+            # tabs are not lost when only the current one is active.
+            for name, config in self._provider_configs.items():
+                if not config:
+                    continue
                 api_key = config["key_input"].text()
                 model_id = config["model_combo"].currentData()
                 if not model_id:
                     model_id = config["model_combo"].currentText()
-
-                cfg.set(f"ai.providers.{provider}.api_key", api_key)
-                cfg.set(f"ai.providers.{provider}.model", model_id)
-
+                cfg.set(f"ai.providers.{name}.api_key", api_key)
+                cfg.set(f"ai.providers.{name}.model", model_id)
         elif type_id == 1:  # Local
             provider = "ollama"
             cfg.set("ai.providers.ollama.base_url", self.ollama_url.text())

@@ -97,11 +97,16 @@ class DocumentPanel(QWidget):
         self._summarizer = DocumentSummarizer(ai_engine=engine)
 
     def _on_files_dropped(self, files: list[str]) -> None:
+        asyncio.ensure_future(self._parse_files(files))
+
+    async def _parse_files(self, files: list[str]) -> None:
         from src.document.parser import DocumentParser
         parser = DocumentParser()
+        # Parsing large PDFs blocks for seconds, so run it off the UI thread.
+        loop = asyncio.get_event_loop()
         texts = []
         for f in files:
-            text = parser.parse(f)
+            text = await loop.run_in_executor(None, parser.parse, f)
             if text:
                 texts.append(f"--- {f} ---\n{text}")
         self._current_text = "\n\n".join(texts)
@@ -112,8 +117,13 @@ class DocumentPanel(QWidget):
         url = self.url_input.text().strip()
         if not url:
             return
+        asyncio.ensure_future(self._fetch_url(url))
+
+    async def _fetch_url(self, url: str) -> None:
         import trafilatura
-        downloaded = trafilatura.fetch_url(url)
+        # Fetching a remote page can block for tens of seconds.
+        loop = asyncio.get_event_loop()
+        downloaded = await loop.run_in_executor(None, trafilatura.fetch_url, url)
         if downloaded:
             self._current_text = trafilatura.extract(downloaded) or ""
             self.content_preview.setPlainText(self._current_text[:5000])

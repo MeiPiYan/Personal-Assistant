@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
+
 from PySide6.QtCore import Qt, Slot
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel,
@@ -234,13 +236,20 @@ class ChatReaderPanel(QWidget):
         self._qq_reader.error.connect(self._on_error)
         self._qq_reader.message_received.connect(self._on_message)
 
-        success = self._qq_reader.start()
+        asyncio.ensure_future(self._start_qq())
+
+    async def _start_qq(self) -> None:
+        # start() performs a synchronous HTTP probe that can block up to 10s;
+        # keep it off the UI thread.
+        loop = asyncio.get_event_loop()
+        reader = self._qq_reader
+        success = await loop.run_in_executor(None, reader.start)
         if success:
             self.status_label.setText("QQ 已连接")
             self._qq_row.setVisible(True)
             self.start_btn.setEnabled(True)
             # Try to auto-populate group list
-            self._qq_populate_group_list()
+            await self._qq_populate_group_list()
         else:
             self._qq_reader = None
             self.status_label.setText("QQ 连接失败，请检查 NapCat 是否运行")
@@ -251,13 +260,14 @@ class ChatReaderPanel(QWidget):
             self._qq_reader = None
             self._qq_row.setVisible(False)
 
-    def _qq_populate_group_list(self) -> None:
+    async def _qq_populate_group_list(self) -> None:
         """Fetch QQ group list and show count in status."""
         if not self._qq_reader:
             return
+        loop = asyncio.get_event_loop()
         try:
-            groups = self._qq_reader.get_group_list()
-            friends = self._qq_reader.get_friend_list()
+            groups = await loop.run_in_executor(None, self._qq_reader.get_group_list)
+            friends = await loop.run_in_executor(None, self._qq_reader.get_friend_list)
             parts = []
             if groups:
                 parts.append(f"{len(groups)} 个群")

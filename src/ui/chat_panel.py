@@ -213,8 +213,10 @@ class ChatPanel(QWidget):
                 self._ai_engine.set_model(model)
 
             # Build messages with system prompt
-            # Extract chat history (excluding the latest user message)
+            # Extract chat history (excluding the latest user message), capped
+            # so the payload doesn't grow without bound over long sessions.
             chat_history = self._messages[:-1] if len(self._messages) > 1 else []
+            chat_history = chat_history[-20:]
             api_messages = build_chat_messages(text, chat_history)
 
             # Run async chat_stream via asyncio task

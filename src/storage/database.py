@@ -7,7 +7,9 @@ from pathlib import Path
 class Database:
     _instance = None
     _db: aiosqlite.Connection | None = None
-    _db_path: str = "data/assistant.db"
+    # Anchor to the project root so the DB lands in the same place regardless
+    # of the process working directory.
+    _db_path: str = str(Path(__file__).resolve().parents[2] / "data" / "assistant.db")
 
     def __new__(cls) -> Database:
         if cls._instance is None:

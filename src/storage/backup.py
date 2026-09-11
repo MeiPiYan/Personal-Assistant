@@ -8,6 +8,33 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
+# Sentinel written into config backups in place of real API keys.
+_REDACTED = "__REDACTED__"
+
+# Anchor default paths to the project root so backups land in the same place
+# regardless of the process working directory.
+_PROJECT_ROOT = Path(__file__).resolve().parents[2]
+
+
+def _redact_api_keys(data: dict) -> dict:
+    """Return a copy of the config dict with every provider api_key redacted."""
+    providers = data.get("ai", {}).get("providers", {})
+    for cfg in providers.values():
+        if isinstance(cfg, dict) and cfg.get("api_key"):
+            cfg["api_key"] = _REDACTED
+    return data
+
+
+def _restore_redacted_keys(backed_up: dict, current: dict) -> dict:
+    """Replace sentinel keys in a restored config with the live config's real keys."""
+    providers = backed_up.get("ai", {}).get("providers", {})
+    current_providers = current.get("ai", {}).get("providers", {})
+    for name, cfg in providers.items():
+        if isinstance(cfg, dict) and cfg.get("api_key") == _REDACTED:
+            live = current_providers.get(name, {})
+            cfg["api_key"] = live.get("api_key", "")
+    return backed_up
+
 
 class BackupManager:
     """Manages backups of the database and configuration files.
@@ -31,9 +58,9 @@ class BackupManager:
         if hasattr(self, "_initialized"):
             return
         self._initialized = True
-        self._backup_dir: Path = Path("data/backups")
-        self._db_path: Path = Path("data/assistant.db")
-        self._config_path: Path = Path("config/settings.yaml")
+        self._backup_dir: Path = _PROJECT_ROOT / "data" / "backups"
+        self._db_path: Path = _PROJECT_ROOT / "data" / "assistant.db"
+        self._config_path: Path = _PROJECT_ROOT / "config" / "settings.yaml"
         self._max_backups: int = 10
         self._interval_hours: float = 24
         self._auto_on_startup: bool = True
@@ -42,18 +69,21 @@ class BackupManager:
 
     def configure(
         self,
-        backup_dir: str | Path = "data/backups",
-        db_path: str | Path = "data/assistant.db",
-        config_path: str | Path = "config/settings.yaml",
+        backup_dir: str | Path | None = None,
+        db_path: str | Path | None = None,
+        config_path: str | Path | None = None,
         max_backups: int = 10,
         interval_hours: float = 24,
         auto_on_startup: bool = True,
         enabled: bool = True,
     ) -> None:
         """Configure backup manager from settings."""
-        self._backup_dir = Path(backup_dir)
-        self._db_path = Path(db_path)
-        self._config_path = Path(config_path)
+        if backup_dir is not None:
+            self._backup_dir = Path(backup_dir)
+        if db_path is not None:
+            self._db_path = Path(db_path)
+        if config_path is not None:
+            self._config_path = Path(config_path)
         self._max_backups = max_backups
         self._interval_hours = interval_hours
         self._auto_on_startup = auto_on_startup
@@ -79,7 +109,10 @@ class BackupManager:
             return f"{size_bytes / (1024 * 1024):.1f} MB"
 
     async def backup_database(self) -> dict:
-        """Copy the current database file to the backup directory.
+        """Back up the current database file to the backup directory.
+
+        Uses SQLite's VACUUM INTO when a live connection is available (safe
+        against in-flight writes); falls back to a plain file copy otherwise.
 
         Returns:
             dict with status, path, and size info, or error message.
@@ -95,9 +128,16 @@ class BackupManager:
         dest = self._backup_dir / f"database_{ts}.db"
 
         try:
-            # Use run_in_executor to avoid blocking the event loop with I/O
-            loop = asyncio.get_event_loop()
-            await loop.run_in_executor(None, shutil.copy2, str(self._db_path), str(dest))
+            from src.storage.database import Database
+
+            db = Database()
+            if db.connection is not None:
+                escaped = str(dest).replace("'", "''")
+                await db.connection.execute(f"VACUUM INTO '{escaped}'")
+            else:
+                # No live connection yet - plain copy is safe on a closed DB.
+                loop = asyncio.get_event_loop()
+                await loop.run_in_executor(None, shutil.copy2, str(self._db_path), str(dest))
             size = dest.stat().st_size
             return {
                 "success": True,
@@ -111,7 +151,7 @@ class BackupManager:
             return {"success": False, "error": str(e)}
 
     async def backup_config(self) -> dict:
-        """Copy the current config file to the backup directory.
+        """Copy the current config file to the backup directory with API keys redacted.
 
         Returns:
             dict with status, path, and size info, or error message.
@@ -127,8 +167,19 @@ class BackupManager:
         dest = self._backup_dir / f"settings_{ts}.yaml"
 
         try:
+            import yaml
+
+            def _write() -> None:
+                data = yaml.safe_load(self._config_path.read_text(encoding="utf-8")) or {}
+                yaml.safe_dump(
+                    _redact_api_keys(data),
+                    dest.open("w", encoding="utf-8"),
+                    allow_unicode=True,
+                    sort_keys=False,
+                )
+
             loop = asyncio.get_event_loop()
-            await loop.run_in_executor(None, shutil.copy2, str(self._config_path), str(dest))
+            await loop.run_in_executor(None, _write)
             size = dest.stat().st_size
             return {
                 "success": True,
@@ -157,6 +208,9 @@ class BackupManager:
     async def restore_database(self, backup_path: str | Path) -> dict:
         """Restore database from a specified backup.
 
+        Closes the live connection before overwriting the file and reconnects
+        afterwards, so the restored database is actually the one in use.
+
         Args:
             backup_path: Path to the backup file to restore.
 
@@ -168,7 +222,17 @@ class BackupManager:
             return {"success": False, "error": f"Backup file not found: {backup_path}"}
 
         try:
+            from src.storage.database import Database
+
             loop = asyncio.get_event_loop()
+            db = Database()
+
+            # Close the live connection so Windows allows overwriting the file
+            # and stale handles don't keep serving old data.
+            db_was_open = db.connection is not None
+            active_path = db._db_path
+            if db_was_open:
+                await db.close()
 
             # Create a safety backup of the current DB before restoring
             if self._db_path.exists():
@@ -182,6 +246,10 @@ class BackupManager:
             await loop.run_in_executor(
                 None, shutil.copy2, str(backup_path), str(self._db_path)
             )
+
+            if db_was_open:
+                await db.connect(active_path)
+
             return {
                 "success": True,
                 "message": f"Database restored from {backup_path.name}",
@@ -203,6 +271,21 @@ class BackupManager:
             return {"success": False, "error": f"Backup file not found: {backup_path}"}
 
         try:
+            import yaml
+
+            def _restore() -> None:
+                backed_up = yaml.safe_load(backup_path.read_text(encoding="utf-8")) or {}
+                current = {}
+                if self._config_path.exists():
+                    current = yaml.safe_load(self._config_path.read_text(encoding="utf-8")) or {}
+                merged = _restore_redacted_keys(backed_up, current)
+                yaml.safe_dump(
+                    merged,
+                    self._config_path.open("w", encoding="utf-8"),
+                    allow_unicode=True,
+                    sort_keys=False,
+                )
+
             loop = asyncio.get_event_loop()
 
             # Create a safety backup of the current config before restoring
@@ -214,9 +297,7 @@ class BackupManager:
                     None, shutil.copy2, str(self._config_path), str(safety_dest)
                 )
 
-            await loop.run_in_executor(
-                None, shutil.copy2, str(backup_path), str(self._config_path)
-            )
+            await loop.run_in_executor(None, _restore)
             return {
                 "success": True,
                 "message": f"Config restored from {backup_path.name}",

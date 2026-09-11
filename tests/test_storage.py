@@ -259,15 +259,9 @@ class TestDAOChatMessages:
 
     @pytest.mark.asyncio
     async def test_search_messages_via_fts(self, dao, db):
-        """Insert into both chat_messages AND messages_fts, then search."""
+        """insert_message keeps messages_fts in sync, so search works directly."""
         msg = ChatMessage(platform="wechat", sender="Alice", content="Python is great")
-        row_id = await dao.insert_message(msg)
-        # FTS table needs explicit insert (triggers not configured)
-        await db.connection.execute(
-            "INSERT INTO messages_fts(rowid, content, sender) VALUES (?, ?, ?)",
-            (row_id, msg.content, msg.sender),
-        )
-        await db.connection.commit()
+        await dao.insert_message(msg)
 
         results = await dao.search_messages("Python")
         assert len(results) == 1
@@ -276,12 +270,7 @@ class TestDAOChatMessages:
     @pytest.mark.asyncio
     async def test_search_messages_no_match(self, dao, db):
         msg = ChatMessage(platform="wechat", sender="Alice", content="Hello")
-        row_id = await dao.insert_message(msg)
-        await db.connection.execute(
-            "INSERT INTO messages_fts(rowid, content, sender) VALUES (?, ?, ?)",
-            (row_id, msg.content, msg.sender),
-        )
-        await db.connection.commit()
+        await dao.insert_message(msg)
 
         results = await dao.search_messages("nonexistent")
         assert len(results) == 0
@@ -313,12 +302,7 @@ class TestDAODiary:
     @pytest.mark.asyncio
     async def test_search_diaries_via_fts(self, dao, db):
         entry = DiaryEntry(content="Machine learning is fascinating")
-        row_id = await dao.insert_diary(entry)
-        await db.connection.execute(
-            "INSERT INTO diary_fts(rowid, content, summary, tags) VALUES (?, ?, ?, ?)",
-            (row_id, entry.content, entry.summary, json.dumps(entry.tags)),
-        )
-        await db.connection.commit()
+        await dao.insert_diary(entry)
 
         results = await dao.search_diaries("machine")
         assert len(results) == 1
@@ -326,12 +310,7 @@ class TestDAODiary:
     @pytest.mark.asyncio
     async def test_search_diaries_no_match(self, dao, db):
         entry = DiaryEntry(content="Rainy day")
-        row_id = await dao.insert_diary(entry)
-        await db.connection.execute(
-            "INSERT INTO diary_fts(rowid, content, summary, tags) VALUES (?, ?, ?, ?)",
-            (row_id, entry.content, entry.summary, json.dumps(entry.tags)),
-        )
-        await db.connection.commit()
+        await dao.insert_diary(entry)
 
         results = await dao.search_diaries("sunny")
         assert len(results) == 0
@@ -369,12 +348,7 @@ class TestDAOKnowledge:
     @pytest.mark.asyncio
     async def test_search_knowledge_via_fts(self, dao, db):
         item = KnowledgeItem(title="Rust Book", content="Ownership and borrowing")
-        row_id = await dao.insert_knowledge(item)
-        await db.connection.execute(
-            "INSERT INTO knowledge_fts(rowid, title, content, tags) VALUES (?, ?, ?, ?)",
-            (row_id, item.title, item.content, json.dumps(item.tags)),
-        )
-        await db.connection.commit()
+        await dao.insert_knowledge(item)
 
         results = await dao.search_knowledge("ownership")
         assert len(results) == 1
@@ -383,12 +357,7 @@ class TestDAOKnowledge:
     @pytest.mark.asyncio
     async def test_search_knowledge_no_match(self, dao, db):
         item = KnowledgeItem(title="Cooking", content="Pasta recipe")
-        row_id = await dao.insert_knowledge(item)
-        await db.connection.execute(
-            "INSERT INTO knowledge_fts(rowid, title, content, tags) VALUES (?, ?, ?, ?)",
-            (row_id, item.title, item.content, json.dumps(item.tags)),
-        )
-        await db.connection.commit()
+        await dao.insert_knowledge(item)
 
         results = await dao.search_knowledge("quantum physics")
         assert len(results) == 0
