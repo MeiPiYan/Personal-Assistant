@@ -20,10 +20,18 @@ from src.storage.backup import BackupManager
 from src.utils.async_bridge import setup_async_loop
 
 
+def _resolve_project_path(p: str | Path) -> Path:
+    """Resolve a config path against the project root when it is relative."""
+    path = Path(p)
+    if not path.is_absolute():
+        path = Path(__file__).resolve().parent / path
+    return path
+
+
 async def init_db(app: Application) -> None:
     db = Database()
     db_path = app.config.get("storage.db_path", "data/assistant.db")
-    await db.connect(db_path)
+    await db.connect(str(_resolve_project_path(db_path)))
 
 
 async def init_backup(app: Application) -> BackupManager:
@@ -35,8 +43,8 @@ async def init_backup(app: Application) -> BackupManager:
     db_path = app.config.get("storage.db_path", "data/assistant.db")
 
     backup_mgr.configure(
-        backup_dir=backup_cfg.get("directory", "data/backups"),
-        db_path=db_path,
+        backup_dir=_resolve_project_path(backup_cfg.get("directory", "data/backups")),
+        db_path=_resolve_project_path(db_path),
         config_path=str(Path(__file__).parent / "config" / "settings.yaml"),
         max_backups=backup_cfg.get("max_backups", 10),
         interval_hours=backup_cfg.get("interval_hours", 24),

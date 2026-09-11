@@ -51,7 +51,7 @@ class TestConfigSingleton:
 
 class TestConfigGet:
     def test_simple_key(self, config):
-        assert config.get("ai.default_provider") == "openai"
+        assert config.get("ai.default_provider") == "deepseek"
 
     def test_nested_key(self, config):
         assert config.get("ai.providers.openai.api_key") == ""
@@ -145,8 +145,8 @@ class TestDefaults:
 
     def test_ai_defaults(self, config):
         d = config._defaults()
-        assert d["ai"]["default_provider"] == "openai"
-        assert d["ai"]["default_model"] == "gpt-4o"
+        assert d["ai"]["default_provider"] == "deepseek"
+        assert d["ai"]["default_model"] == "deepseek-chat"
         assert d["ai"]["max_tokens"] == 4096
         assert d["ai"]["temperature"] == 0.7
 
@@ -180,7 +180,7 @@ class TestConfigLoad:
     def test_load_nonexistent_file_uses_defaults(self, config):
         config.load("/tmp/nonexistent_config_file.yaml")
         # Should fall back to defaults
-        assert config.get("ai.default_provider") == "openai"
+        assert config.get("ai.default_provider") == "deepseek"
 
     def test_load_none_uses_default_path(self, config, monkeypatch):
         """load(None) looks for config/settings.yaml relative to the module."""

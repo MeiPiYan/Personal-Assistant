@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 from PySide6.QtCore import Qt, Signal, QObject
 
@@ -117,12 +118,15 @@ class AIEngine(QObject):
 
     @staticmethod
     def _build_gemini_headers(api_key: str) -> dict:
-        return {"Content-Type": "application/json"}
+        return {
+            "Content-Type": "application/json",
+            "x-goog-api-key": api_key,
+        }
 
     @staticmethod
     def _build_gemini_url(base_url: str, model: str, stream: bool) -> str:
         action = "streamGenerateContent?alt=sse" if stream else "generateContent"
-        return f"{base_url}/v1beta/models/{model}:{action}?key="
+        return f"{base_url}/v1beta/models/{model}:{action}"
 
     @staticmethod
     def _build_gemini_payload(
@@ -166,9 +170,8 @@ class AIEngine(QObject):
 
     # ── Streaming helpers ────────────────────────────────────────────
 
-    @staticmethod
-    async def _read_anthropic_stream(resp) -> tuple[str, any]:
-        """Read Anthropic SSE stream. Returns (full_text, response_object)."""
+    async def _read_anthropic_stream(self, resp) -> str:
+        """Read Anthropic SSE stream, emitting tokens as they arrive. Returns full text."""
         full = ""
         async for line in resp.content:
             line_str = line.decode("utf-8").strip()
@@ -183,13 +186,13 @@ class AIEngine(QObject):
                     text = event.get("delta", {}).get("text", "")
                     if text:
                         full += text
+                        self.response_token.emit(text)
             except json.JSONDecodeError:
                 continue
         return full
 
-    @staticmethod
-    async def _read_gemini_stream(resp) -> str:
-        """Read Gemini SSE stream (alt=sse format)."""
+    async def _read_gemini_stream(self, resp) -> str:
+        """Read Gemini SSE stream (alt=sse format), emitting tokens as they arrive."""
         full = ""
         async for line in resp.content:
             line_str = line.decode("utf-8").strip()
@@ -207,6 +210,7 @@ class AIEngine(QObject):
                         text = part.get("text", "")
                         if text:
                             full += text
+                            self.response_token.emit(text)
             except json.JSONDecodeError:
                 continue
         return full
@@ -232,7 +236,7 @@ class AIEngine(QObject):
                     messages, cfg["model"], max_tokens, temperature, stream=True
                 )
             elif provider == "gemini":
-                api_url = self._build_gemini_url(cfg["base_url"], cfg["model"], stream=True) + cfg["api_key"]
+                api_url = self._build_gemini_url(cfg["base_url"], cfg["model"], stream=True)
                 headers = self._build_gemini_headers(cfg["api_key"])
                 payload = self._build_gemini_payload(messages, temperature)
             else:
@@ -275,13 +279,15 @@ class AIEngine(QObject):
         except aiohttp.ClientError as e:
             self.error.emit(f"网络错误: {e}")
             self.response_done.emit(f"[网络错误: {e}]")
+        except asyncio.TimeoutError:
+            self.error.emit("请求超时 (120s)")
+            self.response_done.emit("[错误: 请求超时]")
         except Exception as e:
             self.error.emit(str(e))
             self.response_done.emit(f"[错误: {e}]")
 
-    @staticmethod
-    async def _read_openai_stream(resp) -> str:
-        """Read OpenAI-compatible SSE stream."""
+    async def _read_openai_stream(self, resp) -> str:
+        """Read OpenAI-compatible SSE stream, emitting tokens as they arrive."""
         full = ""
         async for line in resp.content:
             line_str = line.decode("utf-8").strip()
@@ -297,6 +303,7 @@ class AIEngine(QObject):
                     content = delta.get("content")
                     if content:
                         full += content
+                        self.response_token.emit(content)
             except json.JSONDecodeError:
                 continue
         return full
@@ -320,7 +327,7 @@ class AIEngine(QObject):
                     messages, cfg["model"], max_tokens, temperature, stream=False
                 )
             elif provider == "gemini":
-                api_url = self._build_gemini_url(cfg["base_url"], cfg["model"], stream=False) + cfg["api_key"]
+                api_url = self._build_gemini_url(cfg["base_url"], cfg["model"], stream=False)
                 headers = self._build_gemini_headers(cfg["api_key"])
                 payload = self._build_gemini_payload(messages, temperature)
             else:
@@ -359,3 +366,5 @@ class AIEngine(QObject):
 
         except aiohttp.ClientError as e:
             raise RuntimeError(f"网络错误: {e}") from e
+        except asyncio.TimeoutError as e:
+            raise RuntimeError("请求超时 (120s)") from e

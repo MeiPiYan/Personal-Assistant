@@ -3,11 +3,36 @@ from __future__ import annotations
 import json
 from .database import Database
 from .models import ChatMessage, DiaryEntry, KnowledgeItem
+from src.utils.text import fts_escape, fts_like
 
 
 class DAO:
     def __init__(self):
         self.db = Database()
+
+    async def _fts_search(self, fts_sql: str, like_sql: str, query: str,
+                          limit: int, like_columns: int = 1) -> list[dict]:
+        """Run an FTS5 MATCH query, falling back to LIKE when it yields nothing.
+
+        Raw user input is escaped so MATCH syntax characters and CJK text
+        (which unicode61 doesn't tokenize) still produce usable results.
+        """
+        like = fts_like(query)
+        if not query.strip():
+            return []
+        try:
+            match_expr = fts_escape(query)
+            if match_expr:
+                cursor = await self.db.connection.execute(fts_sql, (match_expr, limit))
+                rows = [dict(r) for r in await cursor.fetchall()]
+                if rows:
+                    return rows
+            cursor = await self.db.connection.execute(
+                like_sql, (*[like] * like_columns, limit)
+            )
+            return [dict(r) for r in await cursor.fetchall()]
+        except Exception:
+            return []
 
     # --- Chat Messages ---
     async def insert_message(self, msg: ChatMessage) -> int:
@@ -40,14 +65,14 @@ class DAO:
         return [dict(r) for r in rows]
 
     async def search_messages(self, query: str, limit: int = 20) -> list[dict]:
-        cursor = await self.db.connection.execute(
+        return await self._fts_search(
             "SELECT cm.* FROM chat_messages cm "
             "JOIN messages_fts mf ON cm.id = mf.rowid "
             "WHERE messages_fts MATCH ? LIMIT ?",
-            (query, limit),
+            "SELECT * FROM chat_messages WHERE content LIKE ? ESCAPE '\\' "
+            "ORDER BY created_at DESC LIMIT ?",
+            query, limit,
         )
-        rows = await cursor.fetchall()
-        return [dict(r) for r in rows]
 
     # --- Diary ---
     async def insert_diary(self, entry: DiaryEntry) -> int:
@@ -74,14 +99,15 @@ class DAO:
         return [dict(r) for r in rows]
 
     async def search_diaries(self, query: str, limit: int = 20) -> list[dict]:
-        cursor = await self.db.connection.execute(
+        return await self._fts_search(
             "SELECT de.* FROM diary_entries de "
             "JOIN diary_fts df ON de.id = df.rowid "
             "WHERE diary_fts MATCH ? LIMIT ?",
-            (query, limit),
+            "SELECT * FROM diary_entries WHERE content LIKE ? ESCAPE '\\' "
+            "OR summary LIKE ? ESCAPE '\\' "
+            "ORDER BY created_at DESC LIMIT ?",
+            query, limit, like_columns=2,
         )
-        rows = await cursor.fetchall()
-        return [dict(r) for r in rows]
 
     # --- Knowledge Base ---
     async def insert_knowledge(self, item: KnowledgeItem) -> int:
@@ -109,14 +135,15 @@ class DAO:
         return [dict(r) for r in rows]
 
     async def search_knowledge(self, query: str, limit: int = 20) -> list[dict]:
-        cursor = await self.db.connection.execute(
+        return await self._fts_search(
             "SELECT ki.* FROM knowledge_items ki "
             "JOIN knowledge_fts kf ON ki.id = kf.rowid "
             "WHERE knowledge_fts MATCH ? LIMIT ?",
-            (query, limit),
+            "SELECT * FROM knowledge_items WHERE title LIKE ? ESCAPE '\\' "
+            "OR content LIKE ? ESCAPE '\\' "
+            "ORDER BY created_at DESC LIMIT ?",
+            query, limit, like_columns=2,
         )
-        rows = await cursor.fetchall()
-        return [dict(r) for r in rows]
 
     # --- Chat History (AI conversation persistence) ---
     async def insert_chat_history(

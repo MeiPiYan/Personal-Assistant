@@ -86,7 +86,8 @@ class QQReader(ChatReaderBase):
     async def get_group_messages(self, group_id: int, count: int = 50) -> list[ChatMessage]:
         try:
             import aiohttp
-            async with aiohttp.ClientSession() as session:
+            timeout = aiohttp.ClientTimeout(total=15)
+            async with aiohttp.ClientSession(timeout=timeout) as session:
                 resp = await session.get(
                     f"{self.base_url}/get_group_msg_history",
                     params={"group_id": group_id, "count": count},
@@ -101,7 +102,8 @@ class QQReader(ChatReaderBase):
     async def get_friend_messages(self, user_id: int, count: int = 50) -> list[ChatMessage]:
         try:
             import aiohttp
-            async with aiohttp.ClientSession() as session:
+            timeout = aiohttp.ClientTimeout(total=15)
+            async with aiohttp.ClientSession(timeout=timeout) as session:
                 resp = await session.get(
                     f"{self.base_url}/get_friend_msg_history",
                     params={"user_id": user_id, "count": count},

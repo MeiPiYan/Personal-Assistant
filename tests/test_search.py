@@ -185,6 +185,73 @@ class TestLocalSearcher:
 
 
 # ===========================================================================
+# FTS escaping and CJK LIKE fallback
+# ===========================================================================
+
+class TestFtsEscape:
+    def test_terms_quoted(self):
+        from src.utils.text import fts_escape
+        assert fts_escape("hello world") == '"hello" "world"'
+
+    def test_double_quotes_doubled(self):
+        from src.utils.text import fts_escape
+        assert fts_escape('a"b') == '"a""b"'
+
+    def test_syntax_chars_neutralized(self):
+        from src.utils.text import fts_escape
+        expr = fts_escape('-star (parens) *')
+        assert expr == '"-star" "(parens)" "*"'
+
+    def test_empty_query(self):
+        from src.utils.text import fts_escape
+        assert fts_escape("   ") == ""
+
+    def test_like_wildcards_escaped(self):
+        from src.utils.text import fts_like
+        assert fts_like("50%_off") == "%50\\%\\_off%"
+        assert fts_like("a\\b") == "%a\\\\b%"
+
+
+class TestCjkLikeFallback:
+    """FTS5's unicode61 tokenizer doesn't split CJK text; the LIKE fallback
+    must still find substring matches."""
+
+    @pytest.mark.asyncio
+    async def test_chinese_substring_found_via_fallback(self, db, searcher):
+        cursor = await db.connection.execute(
+            "INSERT INTO chat_messages (platform, sender, content) VALUES (?, ?, ?)",
+            ("qq", "小明", "今天天气很好，一起去爬山"),
+        )
+        rid = cursor.lastrowid
+        await db.connection.execute(
+            "INSERT INTO messages_fts(rowid, content, sender) VALUES (?, ?, ?)",
+            (rid, "今天天气很好，一起去爬山", "小明"),
+        )
+        await db.connection.commit()
+
+        results = await searcher.search_messages("天气")
+        assert len(results) == 1
+        assert "爬山" in results[0]["content"]
+
+    @pytest.mark.asyncio
+    async def test_special_chars_do_not_raise(self, db, searcher):
+        results = await searcher.search_messages('test" OR 1=1 --')
+        assert isinstance(results, list)
+
+    @pytest.mark.asyncio
+    async def test_knowledge_title_fallback(self, db, searcher):
+        await db.connection.execute(
+            "INSERT INTO knowledge_items (title, content) VALUES (?, ?)",
+            ("Python 异步编程", "asyncio 使用指南"),
+        )
+        await db.connection.commit()
+
+        results = await searcher.search_knowledge("异步")
+        assert len(results) == 1
+        assert results[0]["title"] == "Python 异步编程"
+
+
+# ===========================================================================
 # WebSearcher
 # ===========================================================================
 

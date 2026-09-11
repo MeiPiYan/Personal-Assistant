@@ -4,7 +4,7 @@ import asyncio
 import math
 from pathlib import Path
 
-from PySide6.QtCore import Qt, QPoint, QTimer, Signal, QRectF
+from PySide6.QtCore import Qt, QPoint, QPointF, QTimer, Signal, QRectF
 from PySide6.QtGui import QPainter, QColor, QFont, QPen, QBrush, QPainterPath
 from PySide6.QtWidgets import QWidget
 
