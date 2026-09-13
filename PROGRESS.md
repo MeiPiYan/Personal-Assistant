@@ -59,6 +59,6 @@
 
 ## 安全待办
 
-- [ ] **吊销泄漏的 DeepSeek API key**（`***REDACTED***...`，存在于 git 历史提交 `2386c95`/`0b8def3`/`3067b41`，已推送至 GitHub）。吊销后即使留在历史中也已失效。
-- [ ] （可选）`git filter-repo` 清洗历史 + force-push。
+- [ ] **吊销泄漏的 DeepSeek API key**（`***REDACTED***...`，曾存在于 git 历史并已推送至 GitHub）。吊销后即使留在历史中也已失效。**此步只能由项目所有者在 DeepSeek 控制台操作，尚未完成；本地 `config/settings.yaml` 仍在使用该 key，吊销后请更换新 key。**
+- [x] （可选）`git filter-repo` 清洗历史 + force-push —— 2026-09-13 完成：全部 8 个提交已重写脱敏（泄漏片段 → `***REDACTED***`）并强推 origin/main。重写前完整备份：`D:\project\Personal-Assistant-backup-before-rewrite.bundle`。注意 GitHub 服务器端旧提交短期内可能仍可通过旧 SHA 直链访问。
 - [ ] 新 key 更新到 `config/settings.yaml`（已 gitignore，不会再入库）。
