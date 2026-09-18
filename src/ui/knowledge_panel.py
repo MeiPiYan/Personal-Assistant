@@ -1,5 +1,4 @@
 """Knowledge base panel."""
-
 from __future__ import annotations
 
 import asyncio
@@ -21,6 +20,7 @@ class KnowledgePanel(QWidget):
         super().__init__(parent)
         self.app = app
         self._dao: DAO | None = None
+        self._vector_store = None  # lazily built once the DAO is ready
         self._setup_ui()
         ThemeManager.register_panel(self)
 
@@ -28,7 +28,29 @@ class KnowledgePanel(QWidget):
 
     def set_dao(self, dao: DAO) -> None:
         self._dao = dao
+        self._init_vector_store()
         asyncio.ensure_future(self._load_browse())
+
+    def set_vector_store(self, store) -> None:
+        """Use a shared vector store (built once by MainWindow) instead of a
+        private one, so the embedding backend is not instantiated twice."""
+        if store is not None:
+            self._vector_store = store
+
+    def _init_vector_store(self) -> None:
+        """Build the vector store used to index/search knowledge (P0).
+
+        Kept lazy and non-fatal: if the embedding backend cannot be created,
+        the panel keeps working with the lexical (FTS/LIKE) path only.
+        """
+        if self._vector_store is not None:
+            return
+        try:
+            from src.search.vector_search import VectorStore
+
+            self._vector_store = VectorStore(dao=self._dao)
+        except Exception:
+            self._vector_store = None
 
     # -- Theme refresh ---------------------------------------------------------
 
@@ -162,11 +184,21 @@ class KnowledgePanel(QWidget):
     async def _save_knowledge(self, item: KnowledgeItem) -> None:
         try:
             row_id = await self._dao.insert_knowledge(item)
+            # Build the vector index entry for semantic search (P0).
+            # Non-fatal: a failure here must not block saving the item.
+            indexed = False
+            if self._vector_store is not None:
+                try:
+                    res = await self._vector_store.index_knowledge_item(item)
+                    indexed = res.get("chunks", 0) > 0
+                except Exception:
+                    indexed = False
             self.title_input.clear()
             self.content_input.clear()
             self.tags_input.clear()
             self.source_url_input.clear()
-            self._show_status(f"已添加 (id={row_id})")
+            suffix = "，已建立向量索引" if indexed else ""
+            self._show_status(f"已添加 (id={row_id}){suffix}")
             await self._load_browse()
         except Exception as e:
             self._show_status(f"添加失败: {e}")
@@ -183,21 +215,49 @@ class KnowledgePanel(QWidget):
 
     async def _do_search(self, query: str) -> None:
         try:
-            # Try FTS search first
-            try:
-                results = await self._dao.search_knowledge(query)
-            except Exception:
-                all_items = await self._dao.get_knowledge(limit=100)
-                results = [
-                    item for item in all_items
-                    if query.lower() in (
-                        item.get("title", "") + item.get("content", "") + item.get("tags", "")
-                    ).lower()
-                ]
+            results = None
+            mode = "关键词"
+            # Prefer semantic (vector) search when available (P0).
+            if self._vector_store is not None:
+                try:
+                    hits = await self._vector_store.search(query, top_k=20)
+                    if hits:
+                        results = self._hits_to_items(hits)
+                        mode = "语义"
+                except Exception:
+                    results = None
+            # Fall back to lexical search (FTS + LIKE).
+            if results is None:
+                try:
+                    results = await self._dao.search_knowledge(query)
+                except Exception:
+                    all_items = await self._dao.get_knowledge(limit=100)
+                    results = [
+                        item for item in all_items
+                        if query.lower() in (
+                            item.get("title", "") + item.get("content", "") + item.get("tags", "")
+                        ).lower()
+                    ]
             self._populate_browse(results)
-            self._show_status(f"搜索到 {len(results)} 条结果")
+            self._show_status(f"{mode}搜索到 {len(results)} 条结果")
         except Exception as e:
             self._show_status(f"搜索失败: {e}")
+
+    @staticmethod
+    def _hits_to_items(hits: list[dict]) -> list[dict]:
+        """Shape vector hits into the dict form the browse cards expect."""
+        items = []
+        for h in hits:
+            items.append({
+                "title": "",
+                "content": h.get("content", ""),
+                "category": "",
+                "tags": "",
+                "source_url": "",
+                "created_at": "",
+                "_score": h.get("score"),
+            })
+        return items
 
     def _on_clear_search(self) -> None:
         self.search_input.clear()

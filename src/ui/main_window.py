@@ -1,5 +1,4 @@
 """Main window with sidebar navigation."""
-
 from __future__ import annotations
 
 from PySide6.QtCore import Qt, Signal, QSize
@@ -41,6 +40,7 @@ class MainWindow(QMainWindow):
     def __init__(self, app=None):
         super().__init__()
         self.app = app
+        self._vector_store = None  # shared vector KB store (P1)
         self.setWindowTitle("AI Assistant")
         self.setMinimumSize(860, 560)
 
@@ -157,6 +157,21 @@ class MainWindow(QMainWindow):
         self.chat_panel.set_dao(dao)
         self.diary_panel.set_dao(dao)
         self.knowledge_panel.set_dao(dao)
+        # Build one shared vector store and hand it to the panels that index
+        # knowledge-base content, so the embedding backend is instantiated once.
+        try:
+            from src.search.vector_search import VectorStore
+
+            self._vector_store = VectorStore(dao=dao)
+        except Exception:
+            self._vector_store = None
+        if self._vector_store is not None:
+            if hasattr(self.knowledge_panel, "set_vector_store"):
+                self.knowledge_panel.set_vector_store(self._vector_store)
+            if hasattr(self.doc_panel, "set_vector_store"):
+                self.doc_panel.set_vector_store(self._vector_store)
+            if hasattr(self.chat_panel, "set_vector_store"):
+                self.chat_panel.set_vector_store(self._vector_store)
 
     def set_backup_manager(self, backup_mgr) -> None:
         """Pass the BackupManager instance to the settings panel."""

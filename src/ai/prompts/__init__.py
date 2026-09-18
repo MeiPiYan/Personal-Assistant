@@ -43,9 +43,26 @@ SYSTEM_PROMPT = """你是一个智能个人助手，名为 "AI Assistant"。你�
 - 记住对话上下文，提供连贯的回答
 """
 
+# Appended to the system prompt when local knowledge-base context is supplied.
+RAG_PROMPT_TEMPLATE = """## 知识库参考（RAG）
+
+下面是从用户本地知识库中检索到的参考资料，可能与你正在回答的问题相关。
+请优先依据这些资料作答；若资料与问题无关或不足以回答，请忽略它们并如实说明。
+引用资料时请标注对应的编号，例如 [1]、[2]。不要编造资料中不存在的内容。
+
+{context}
+"""
+
 
 def get_system_prompt() -> str:
     """Get the default system prompt."""
+    return SYSTEM_PROMPT
+
+
+def build_system_prompt(context: str | None = None) -> str:
+    """Return the system prompt, optionally augmented with RAG context."""
+    if context and context.strip():
+        return SYSTEM_PROMPT + "\n\n" + RAG_PROMPT_TEMPLATE.format(context=context.strip())
     return SYSTEM_PROMPT
 
 
@@ -53,12 +70,22 @@ def build_chat_messages(
     user_message: str,
     chat_history: list[dict] | None = None,
     system_prompt: str | None = None,
+    context: str | None = None,
 ) -> list[dict]:
-    """Build the messages list for API call."""
+    """Build the messages list for API call.
+
+    ``context`` is optional retrieved knowledge-base text; when provided it is
+    merged into the system prompt so the model can ground its answer on it.
+    """
     messages = []
 
-    # System prompt
-    prompt = system_prompt or SYSTEM_PROMPT
+    # System prompt (augmented with RAG context when available)
+    if system_prompt is not None:
+        prompt = system_prompt
+        if context and context.strip():
+            prompt = prompt + "\n\n" + RAG_PROMPT_TEMPLATE.format(context=context.strip())
+    else:
+        prompt = build_system_prompt(context)
     messages.append({"role": "system", "content": prompt})
 
     # Chat history

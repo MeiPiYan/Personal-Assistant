@@ -1,6 +1,6 @@
 # 项目进度记录
 
-> 更新日期：2026-09-11
+> 更新日期：2026-09-18
 
 ## 项目状态总览
 
@@ -62,3 +62,40 @@
 - [ ] **吊销泄漏的 DeepSeek API key**（`***REDACTED***...`，曾存在于 git 历史并已推送至 GitHub）。吊销后即使留在历史中也已失效。**此步只能由项目所有者在 DeepSeek 控制台操作，尚未完成；本地 `config/settings.yaml` 仍在使用该 key，吊销后请更换新 key。**
 - [x] （可选）`git filter-repo` 清洗历史 + force-push —— 2026-09-13 完成：全部 8 个提交已重写脱敏（泄漏片段 → `***REDACTED***`）并强推 origin/main。重写前完整备份：`D:\project\Personal-Assistant-backup-before-rewrite.bundle`。注意 GitHub 服务器端旧提交短期内可能仍可通过旧 SHA 直链访问。
 - [ ] 新 key 更新到 `config/settings.yaml`（已 gitignore，不会再入库）。
+
+## 2026-09-18 向量检索与知识库改造（P0–P2）
+
+> 方案文档：`向量检索与知识库改造方案.md`。技术路线：sqlite-vec 向量检索 + FTS5 关键词检索 + RRF 混合融合 + RAG 注入对话。Embedding 默认 hashing 离线后端（零依赖、可运行），可切换 local(bge) / ollama / OpenAI 兼容。
+
+### P0 向量化最小闭环
+- 新增 `src/ai/embedding.py`：Embedding 抽象与工厂（Hashing 离线默认 / LocalBge / Ollama / OpenAI 兼容）。
+- 新增 `src/search/vector_search.py`：VectorStore，index_text / index_knowledge_item / search；sqlite-vec 优先，纯 Python cosine 兜底。
+- `storage/database.py`：新增 documents / chunks / chunks_fts / vec_chunks 表（IF NOT EXISTS），vec_enabled 探测。
+- `storage/dao.py`：insert_document / insert_chunks（同步写 FTS + 向量）/ delete_document / search_chunks_fts。
+- `document/chunker.py`：新增 SemanticChunker（CJK≈1 token/字，默认 400/60 重叠）。
+- `app/config.py` + `config/settings.yaml`：ai.embedding.* 配置段。
+- `ui/knowledge_panel.py`：保存时向量化入库；搜索优先语义、失败回退关键词。
+- 测试：tests/test_embedding.py（11）+ tests/test_vector_search.py（17）。
+
+### P1 存量回填 + 文档入库接线
+- 新增 `src/search/backfill.py`：backfill_knowledge / backfill_diaries / backfill_all（幂等、进度回调）。
+- `ui/document_panel.py`：解析后自动 index_text；「存入知识库」按钮；set_vector_store。
+- `ui/main_window.py`：set_dao 内构建共享 VectorStore 注入 knowledge/document 面板。
+- `main.py`：run_backfill() 启动装配，受 ai.embedding.backfill_on_startup 控制（默认关）。
+- 测试：tests/test_backfill.py（7）。
+
+### P2 混合检索 + RAG 注入对话
+- 新增 `src/search/hybrid_search.py`：rrf_fuse + HybridSearcher.search / build_context（FTS5 关键词 + 向量双通道，RRF 融合）。
+- `ai/prompts/__init__.py`：RAG_PROMPT_TEMPLATE + build_system_prompt(context) + build_chat_messages(context=)。
+- `ui/chat_panel.py`：set_vector_store + _dispatch（发送前召回→注入 system prompt），回复携带来源列表。
+- `ui/widgets/message_bubble.py`：assistant 气泡新增「📎 引用来源」块。
+- `ui/main_window.py`：注入 chat_panel.set_vector_store。
+- 配置：ai.embedding.rag_enabled=true / rag_top_k=5。
+- 测试：tests/test_hybrid_search.py（13 用例）。
+
+### 测试基线
+- P0+P1 新测试 34 passed；全量套件 254 passed / 2 failed（test_search 缺 trafilatura，属既有环境依赖缺失，非本次回归）。
+- 注：P2 用例逻辑经等价副本独立验证通过；因本地挂载目录间歇 I/O 故障，未能在该环境内直接实跑全量套件，请在正常环境执行 `pytest tests/` 复核。
+
+### 其他
+- 依赖：pyproject.toml 新增 sqlite-vec / numpy；移除未使用的 litellm。

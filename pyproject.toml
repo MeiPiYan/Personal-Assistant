@@ -11,6 +11,12 @@ dependencies = [
 
     # AI
 
+    # Vector Knowledge Base (P0)
+    "sqlite-vec>=0.1.6",              # SQLite vector extension (KNN index)
+    "numpy>=1.26",                    # vector math
+    # Optional: local embedding. Uncomment for `provider: local` (bge-small-zh).
+    # "sentence-transformers>=3.0",
+
     # Chat Readers
     "wechatauto-replica>=1.2",
     "aiohttp>=3.9",

@@ -32,6 +32,16 @@ class Config:
                 "default_model": "deepseek-chat",
                 "max_tokens": 4096,
                 "temperature": 0.7,
+                "embedding": {
+                    "provider": "hashing",
+                    "model": "BAAI/bge-small-zh-v1.5",
+                    "dim": 512,
+                    "chunk_tokens": 400,
+                    "overlap_tokens": 60,
+                    "backfill_on_startup": False,
+                    "rag_enabled": True,
+                    "rag_top_k": 5,
+                },
                 "providers": {
                     "openai": {"api_key": "", "base_url": None},
                     "deepseek": {"api_key": "", "model": "deepseek-chat"},

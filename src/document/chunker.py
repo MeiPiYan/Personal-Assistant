@@ -36,3 +36,64 @@ class TextChunker:
             start = end - self.overlap * 3
 
         return [c for c in chunks if c]
+
+
+class SemanticChunker:
+    """Chinese-aware, token-approximate chunker for the vector knowledge base.
+
+    Unlike :class:`TextChunker` (which assumes ~1 token per 3 chars, tuned for
+    English), this estimates CJK text as roughly one token per character, so the
+    configured ``chunk_tokens`` maps to a realistic embedding window. For
+    bge-small-zh-v1.5 (512-token limit) the recommended range is 300-500.
+    """
+
+    # Sentence / paragraph separators, longest-first so boundaries prefer them.
+    DEFAULT_SEPARATORS = (
+        "\n\n", "\n", "。", "！", "？", "；", ".", "!", "?", ";", " ",
+    )
+
+    def __init__(self, chunk_tokens: int = 400, overlap_tokens: int = 60):
+        self.chunk_tokens = max(32, int(chunk_tokens))
+        self.overlap_tokens = max(0, int(overlap_tokens))
+
+    @staticmethod
+    def estimate_tokens(text: str) -> int:
+        """Approximate token count: CJK ≈ 1/char, other ≈ 1/4 chars."""
+        if not text:
+            return 0
+        cjk = sum(1 for ch in text if "\u4e00" <= ch <= "\u9fff")
+        other = len(text) - cjk
+        return int(cjk + other / 4) + 1
+
+    def chunk(self, text: str) -> list[str]:
+        text = (text or "").strip()
+        if not text:
+            return []
+        if self.estimate_tokens(text) <= self.chunk_tokens:
+            return [text]
+
+        chunks: list[str] = []
+        n = len(text)
+        start = 0
+        while start < n:
+            # CJK is ~1 char/token, so the token budget doubles as a char budget.
+            end = min(n, start + self.chunk_tokens)
+            if end < n:
+                window = text[start:end]
+                best_idx = -1
+                best_len = 0
+                for sep in self.DEFAULT_SEPARATORS:
+                    idx = window.rfind(sep)
+                    if idx > best_idx:
+                        best_idx = idx
+                        best_len = len(sep)
+                # Only honor a separator if it appears past the first 40%.
+                if best_idx > len(window) * 0.4:
+                    end = start + best_idx + best_len
+            piece = text[start:end].strip()
+            if piece:
+                chunks.append(piece)
+            if end >= n:
+                break
+            start = max(end - self.overlap_tokens, start + 1)
+        return chunks

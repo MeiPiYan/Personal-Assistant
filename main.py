@@ -67,6 +67,23 @@ async def init_backup(app: Application) -> BackupManager:
     return backup_mgr
 
 
+async def run_backfill(app: Application, dao: DAO) -> None:
+    """Backfill pre-existing records into the vector knowledge base (P1).
+
+    Opt-in via ``ai.embedding.backfill_on_startup`` so the first launch after an
+    upgrade does not silently pay the embedding cost for a large database.
+    """
+    if not app.config.get("ai.embedding.backfill_on_startup", False):
+        return
+    try:
+        from src.search.backfill import BackfillService
+
+        svc = BackfillService(dao=dao)
+        await svc.backfill_all()
+    except Exception:
+        pass  # Backfill failure must not block app launch
+
+
 def main() -> None:
     app = Application()
 
@@ -124,6 +141,8 @@ def main() -> None:
         # Initialize backup manager
         backup_mgr = await init_backup(app)
         main_window.set_backup_manager(backup_mgr)
+        # Backfill existing data into the vector knowledge base (P1)
+        await run_backfill(app, dao)
 
     loop.create_task(startup())
 

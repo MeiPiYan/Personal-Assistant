@@ -1,9 +1,23 @@
 from __future__ import annotations
 
 import json
+import struct
 from .database import Database
 from .models import ChatMessage, DiaryEntry, KnowledgeItem
 from src.utils.text import fts_escape, fts_like
+
+
+def _pack_vector(vec: list[float]) -> bytes:
+    """Pack a float list into float32 bytes (BLOB / sqlite-vec storage)."""
+    return struct.pack(f"<{len(vec)}f", *[float(x) for x in vec])
+
+
+def _unpack_vector(blob: bytes | None) -> list[float]:
+    """Unpack float32 bytes back into a float list."""
+    if not blob:
+        return []
+    count = len(blob) // 4
+    return list(struct.unpack(f"<{count}f", blob[: count * 4]))
 
 
 class DAO:
@@ -143,6 +157,123 @@ class DAO:
             "OR content LIKE ? ESCAPE '\\' "
             "ORDER BY created_at DESC LIMIT ?",
             query, limit, like_columns=2,
+        )
+
+    # --- Knowledge base: documents & chunks (P0 vector KB) ---
+    async def get_document_by_hash(self, content_hash: str) -> dict | None:
+        cursor = await self.db.connection.execute(
+            "SELECT * FROM documents WHERE content_hash = ?", (content_hash,)
+        )
+        row = await cursor.fetchone()
+        return dict(row) if row else None
+
+    async def insert_document(self, title: str, source_path: str,
+                              source_type: str, content_hash: str,
+                              meta_json: str = "{}") -> int:
+        cursor = await self.db.connection.execute(
+            "INSERT INTO documents (title, source_path, source_type, "
+            "content_hash, meta) VALUES (?, ?, ?, ?, ?)",
+            (title, source_path, source_type, content_hash, meta_json),
+        )
+        await self.db.connection.commit()
+        return cursor.lastrowid
+
+    async def insert_chunks(self, doc_id: int, chunks: list[dict]) -> list[int]:
+        """Insert chunks and sync both the keyword (FTS) and vector indexes.
+
+        Each item may contain: content, chunk_index, token_count, page, section,
+        char_start, char_end, embedding (list[float] | None).
+        """
+        ids: list[int] = []
+        conn = self.db.connection
+        for i, ch in enumerate(chunks):
+            emb = ch.get("embedding")
+            blob = _pack_vector(emb) if emb else None
+            dim = len(emb) if emb else None
+            cursor = await conn.execute(
+                "INSERT INTO chunks (doc_id, chunk_index, content, token_count, "
+                "page, section, char_start, char_end, embedding, embedding_dim) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    doc_id,
+                    ch.get("chunk_index", i),
+                    ch.get("content", ""),
+                    ch.get("token_count"),
+                    ch.get("page"),
+                    ch.get("section"),
+                    ch.get("char_start"),
+                    ch.get("char_end"),
+                    blob,
+                    dim,
+                ),
+            )
+            rowid = cursor.lastrowid
+            ids.append(rowid)
+            # Keep the FTS keyword channel in sync (historical bug: forgot this).
+            await conn.execute(
+                "INSERT INTO chunks_fts (rowid, content) VALUES (?, ?)",
+                (rowid, ch.get("content", "")),
+            )
+            # Keep the optional sqlite-vec index in sync.
+            if emb and getattr(self.db, "vec_enabled", False):
+                await conn.execute(
+                    "INSERT INTO vec_chunks (chunk_id, embedding) VALUES (?, ?)",
+                    (rowid, _pack_vector(emb)),
+                )
+        await conn.commit()
+        return ids
+
+    async def get_chunks(self, doc_id: int | None = None,
+                         limit: int = 5000) -> list[dict]:
+        if doc_id is not None:
+            cursor = await self.db.connection.execute(
+                "SELECT * FROM chunks WHERE doc_id = ? ORDER BY chunk_index LIMIT ?",
+                (doc_id, limit),
+            )
+        else:
+            cursor = await self.db.connection.execute(
+                "SELECT * FROM chunks ORDER BY id LIMIT ?", (limit,)
+            )
+        return [dict(r) for r in await cursor.fetchall()]
+
+    async def count_chunks(self, doc_id: int | None = None) -> int:
+        if doc_id is not None:
+            cursor = await self.db.connection.execute(
+                "SELECT COUNT(*) FROM chunks WHERE doc_id = ?", (doc_id,)
+            )
+        else:
+            cursor = await self.db.connection.execute("SELECT COUNT(*) FROM chunks")
+        row = await cursor.fetchone()
+        return int(row[0]) if row else 0
+
+    async def delete_document(self, doc_id: int) -> None:
+        conn = self.db.connection
+        cursor = await conn.execute(
+            "SELECT id FROM chunks WHERE doc_id = ?", (doc_id,)
+        )
+        chunk_ids = [r[0] for r in await cursor.fetchall()]
+        for cid in chunk_ids:
+            try:
+                await conn.execute("DELETE FROM chunks_fts WHERE rowid = ?", (cid,))
+            except Exception:
+                pass
+            if getattr(self.db, "vec_enabled", False):
+                try:
+                    await conn.execute(
+                        "DELETE FROM vec_chunks WHERE chunk_id = ?", (cid,)
+                    )
+                except Exception:
+                    pass
+        await conn.execute("DELETE FROM chunks WHERE doc_id = ?", (doc_id,))
+        await conn.execute("DELETE FROM documents WHERE id = ?", (doc_id,))
+        await conn.commit()
+
+    async def search_chunks_fts(self, query: str, limit: int = 20) -> list[dict]:
+        return await self._fts_search(
+            "SELECT c.* FROM chunks c JOIN chunks_fts f ON c.id = f.rowid "
+            "WHERE chunks_fts MATCH ? LIMIT ?",
+            "SELECT * FROM chunks WHERE content LIKE ? ESCAPE '\\' LIMIT ?",
+            query, limit,
         )
 
     # --- Chat History (AI conversation persistence) ---

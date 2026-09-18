@@ -1,5 +1,4 @@
 """Document panel - file parsing and AI summarization."""
-
 from __future__ import annotations
 
 import asyncio
@@ -21,6 +20,7 @@ class DocumentPanel(QWidget):
         self._current_text = ""
         self._ai_engine = None
         self._summarizer: DocumentSummarizer | None = None
+        self._vector_store = None  # set via set_vector_store (P1)
         self._setup_ui()
 
     def _setup_ui(self) -> None:
@@ -79,6 +79,13 @@ class DocumentPanel(QWidget):
         self.summarize_btn.setEnabled(False)
         self.summarize_btn.clicked.connect(self._on_summarize)
         btn_row.addWidget(self.summarize_btn)
+
+        self.index_btn = QPushButton("存入知识库")
+        self.index_btn.setObjectName("secondaryBtn")
+        self.index_btn.setEnabled(False)
+        self.index_btn.clicked.connect(self._on_index)
+        btn_row.addWidget(self.index_btn)
+
         btn_row.addStretch()
         right_layout.addLayout(btn_row)
 
@@ -96,6 +103,10 @@ class DocumentPanel(QWidget):
         self._ai_engine = engine
         self._summarizer = DocumentSummarizer(ai_engine=engine)
 
+    def set_vector_store(self, store) -> None:
+        """Receive the shared vector store so parsed docs can be indexed (P1)."""
+        self._vector_store = store
+
     def _on_files_dropped(self, files: list[str]) -> None:
         asyncio.ensure_future(self._parse_files(files))
 
@@ -109,9 +120,11 @@ class DocumentPanel(QWidget):
             text = await loop.run_in_executor(None, parser.parse, f)
             if text:
                 texts.append(f"--- {f} ---\n{text}")
+                await self._index_document(text, title=f, source_path=f)
         self._current_text = "\n\n".join(texts)
         self.content_preview.setPlainText(self._current_text[:5000])
         self.summarize_btn.setEnabled(bool(self._current_text))
+        self.index_btn.setEnabled(bool(self._current_text))
 
     def _on_fetch_url(self) -> None:
         url = self.url_input.text().strip()
@@ -128,6 +141,40 @@ class DocumentPanel(QWidget):
             self._current_text = trafilatura.extract(downloaded) or ""
             self.content_preview.setPlainText(self._current_text[:5000])
             self.summarize_btn.setEnabled(bool(self._current_text))
+            self.index_btn.setEnabled(bool(self._current_text))
+            await self._index_document(
+                self._current_text, title=url, source_path=url, source_type="html"
+            )
+
+    # -- Vector knowledge base (P1) ------------------------------------------ #
+
+    async def _index_document(self, text: str, title: str = "",
+                              source_path: str = "",
+                              source_type: str = "document") -> bool:
+        """Index parsed document text into the vector knowledge base."""
+        if not text or self._vector_store is None:
+            return False
+        try:
+            res = await self._vector_store.index_text(
+                text, title=title or source_path,
+                source_path=source_path, source_type=source_type,
+            )
+            return res.get("chunks", 0) > 0
+        except Exception:
+            return False
+
+    def _on_index(self) -> None:
+        if not self._current_text:
+            return
+        asyncio.ensure_future(self._do_index())
+
+    async def _do_index(self) -> None:
+        title = self.url_input.text().strip() or "手动文档"
+        ok = await self._index_document(self._current_text, title=title)
+        self.summary_output.setPlainText(
+            "已存入知识库（已建立向量索引）" if ok
+            else "存入知识库失败或无可索引内容"
+        )
 
     def _on_summarize(self) -> None:
         if not self._current_text or not self._summarizer:

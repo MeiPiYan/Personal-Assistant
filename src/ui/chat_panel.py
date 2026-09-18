@@ -31,6 +31,9 @@ class ChatPanel(QWidget):
         self.app = app
         self._ai_engine = None
         self._dao: DAO | None = None
+        self._vector_store = None
+        self._hybrid = None  # HybridSearcher (RAG retrieval, P2)
+        self._pending_sources: list[dict] = []
         self._messages: list[dict] = []
         self._setup_ui()
         ThemeManager.register_panel(self)
@@ -57,6 +60,38 @@ class ChatPanel(QWidget):
         """Accept DAO instance and load persisted chat history."""
         self._dao = dao
         asyncio.ensure_future(self._load_history())
+
+    def set_vector_store(self, store) -> None:
+        """Attach the shared vector store and enable RAG retrieval (P2)."""
+        self._vector_store = store
+        try:
+            from ..search.hybrid_search import HybridSearcher
+
+            self._hybrid = HybridSearcher(vector_store=store)
+        except Exception as e:
+            print(f"[ChatPanel] Failed to initialise hybrid search: {e}")
+            self._hybrid = None
+
+    # ------------------------------------------------------------------ #
+    # RAG configuration helpers
+    # ------------------------------------------------------------------ #
+    def _rag_enabled(self) -> bool:
+        if self._hybrid is None:
+            return False
+        try:
+            from ..app.config import Config
+
+            return bool(Config().get("ai.embedding.rag_enabled", True))
+        except Exception:
+            return True
+
+    def _rag_top_k(self) -> int:
+        try:
+            from ..app.config import Config
+
+            return int(Config().get("ai.embedding.rag_top_k", 5) or 5)
+        except Exception:
+            return 5
 
     def _setup_ui(self) -> None:
         c = ThemeManager.get_colors()
@@ -212,18 +247,35 @@ class ChatPanel(QWidget):
             if model:
                 self._ai_engine.set_model(model)
 
-            # Build messages with system prompt
             # Extract chat history (excluding the latest user message), capped
             # so the payload doesn't grow without bound over long sessions.
             chat_history = self._messages[:-1] if len(self._messages) > 1 else []
             chat_history = chat_history[-20:]
-            api_messages = build_chat_messages(text, chat_history)
 
-            # Run async chat_stream via asyncio task
-            asyncio.ensure_future(self._ai_engine.chat_stream(api_messages))
+            # Retrieve RAG context and stream the response.
+            asyncio.ensure_future(self._dispatch(text, chat_history))
 
-    def _add_message(self, text: str, is_user: bool) -> None:
-        bubble = MessageBubble(text, is_user=is_user)
+    async def _dispatch(self, text: str, chat_history: list[dict]) -> None:
+        """Retrieve knowledge-base context, then stream the assistant reply."""
+        context = ""
+        sources: list[dict] = []
+        if self._rag_enabled():
+            try:
+                context, sources = await self._hybrid.build_context(
+                    text, top_k=self._rag_top_k()
+                )
+            except Exception as e:
+                print(f"[ChatPanel] RAG retrieval failed: {e}")
+                context, sources = "", []
+
+        self._pending_sources = sources
+        api_messages = build_chat_messages(text, chat_history, context=context)
+        await self._ai_engine.chat_stream(api_messages)
+
+    def _add_message(
+        self, text: str, is_user: bool, sources: list[dict] | None = None
+    ) -> None:
+        bubble = MessageBubble(text, is_user=is_user, sources=sources)
         self.messages_layout.insertWidget(self.messages_layout.count() - 1, bubble)
         sb = self.scroll_area.verticalScrollBar()
         sb.setValue(sb.maximum())
@@ -243,7 +295,7 @@ class ChatPanel(QWidget):
         self.streaming_widget.hide()
         self.send_btn.setEnabled(True)
         if full_text.strip():
-            self._add_message(full_text, is_user=False)
+            self._add_message(full_text, is_user=False, sources=self._pending_sources)
             self._messages.append({"role": "assistant", "content": full_text})
 
             # Persist assistant response to database
@@ -252,11 +304,13 @@ class ChatPanel(QWidget):
                 asyncio.ensure_future(
                     self._dao.insert_chat_history("assistant", full_text, model=model)
                 )
+        self._pending_sources = []
 
     @Slot(str)
     def _on_error(self, error: str) -> None:
         self.streaming_widget.hide()
         self.send_btn.setEnabled(True)
+        self._pending_sources = []
         self._add_message(f"[错误] {error}", is_user=False)
 
     def _on_model_changed(self, index: int) -> None:
