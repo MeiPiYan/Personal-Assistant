@@ -1,6 +1,6 @@
 # 项目进度记录
 
-> 更新日期：2026-09-18
+> 更新日期：2026-09-20
 
 ## 项目状态总览
 
@@ -17,7 +17,7 @@
 | 微信监控 | ⚠️ 可选依赖 | 需安装 wechatauto-replica（当前未装，优雅降级） |
 | 备份恢复 | ✅ 完成 | VACUUM INTO 一致性备份 + 恢复自动重连 + 密钥脱敏 |
 | 主题 / 托盘 / 悬浮球 | ✅ 完成 | 明暗双主题，48px 悬浮球 |
-| 测试 | ✅ 222 通过 | pytest，覆盖存储/搜索/AI 引擎/配置/工具/文档/布局/QQ 解析 |
+| 测试 | ✅ 297 通过 | pytest，覆盖存储/搜索/AI 引擎/配置/工具/文档/布局/QQ 解析/图谱状态机/图谱 UI |
 
 ## 2026-09-11 修复记录（本轮）
 
@@ -74,6 +74,18 @@
 - 配置：`ai.graph`（level1_top_k=8 / similarity_threshold=0.35 / hover_debounce_ms=250）。
 - 测试：test_graph_state.py（15）+ test_graph_data.py（12）；全量回归 293 passed / 0 failed。
 - 顺带修复：icons.py 补 QRectF 导入与 "graph" 图标映射。
+
+## 2026-09-20 隐患审计与修复（图谱 UI + 检索链）
+
+> 针对新增 G-P0 图谱模块与 P0–P2 检索链的专项审计，共确认 2 项崩溃级 + 3 项功能缺失 + 4 项性能/健壮性隐患，全部修复。提交 `46ccbd1`。
+
+- **崩溃级**：`graph_node.py` GraphNodeItem 原继承 QGraphicsEllipseItem（非 QObject），Signal/QTimer 构造即 TypeError——图谱渲染任何节点即崩；改用 QGraphicsObject 并手绘 paint/boundingRect/shape，同时补上遗漏的 Qt 导入。
+- **功能接线**：`main_window` 连接 node_double_clicked → 定位来源内容（知识面板 focus_content 展示）；`knowledge_panel` 搜索卡片新增「在图谱中探索」按钮 → graph_enter_requested → enter_from_search，补齐 T1 进入与 T6 双击导航两条链路。
+- **防重入**：`graph_panel` 节点激活协程加合并机制，快速扫过多个节点只执行最新一次重建，不再排队竞争。
+- **性能**：`dao` 新增 get_chunk / get_document 主键点查；`graph_data.get_node` 由全表扫描改为点查。
+- **数据可靠**：`vector_search.index_text` 先分块后插文档，空文本不再留下孤儿 document；`backfill` 以 deduped 字段判定去重，0-chunk 计入 failed 而非 deduped。
+- **可观测**：`hybrid_search` 检索失败输出日志，不再静默吞异常。
+- **测试**：新增 tests/test_graph_ui.py（4 例：节点构造+信号 / set_level / rebuild / 防重入合并）；全量回归 **297 passed / 0 failed**。
 
 ## 2026-09-18 向量检索与知识库改造（P0–P2）
 
