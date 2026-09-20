@@ -42,6 +42,12 @@ class Config:
                     "rag_enabled": True,
                     "rag_top_k": 5,
                 },
+                "graph": {
+                    "level1_top_k": 8,
+                    "similarity_threshold": 0.35,
+                    "hover_debounce_ms": 250,
+                    "anim_duration_ms": 300,
+                },
                 "providers": {
                     "openai": {"api_key": "", "base_url": None},
                     "deepseek": {"api_key": "", "model": "deepseek-chat"},

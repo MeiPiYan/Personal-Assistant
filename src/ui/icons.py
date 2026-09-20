@@ -255,6 +255,7 @@ NAV_ICONS: list[tuple[str, str, str]] = [
     ("monitor",  "监控", "聊天消息监控"),
     ("diary",    "日记", "日记与笔记"),
     ("knowledge","知识", "知识库"),
+    ("graph",    "图谱", "知识图谱"),
     ("settings", "设置", "应用设置"),
 ]
 

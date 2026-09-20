@@ -15,6 +15,7 @@ from .document_panel import DocumentPanel
 from .search_panel import SearchPanel
 from .diary_panel import DiaryPanel
 from .knowledge_panel import KnowledgePanel
+from .graph_panel import GraphPanel
 from .settings_panel import SettingsPanel
 from .chat_reader_panel import ChatReaderPanel
 from .icons import get_nav_icons
@@ -114,6 +115,7 @@ class MainWindow(QMainWindow):
         self.reader_panel = ChatReaderPanel(app=self.app)
         self.diary_panel = DiaryPanel(app=self.app)
         self.knowledge_panel = KnowledgePanel(app=self.app)
+        self.graph_panel = GraphPanel(app=self.app)
         self.settings_panel = SettingsPanel(app=self.app)
 
         self._panels = [
@@ -123,6 +125,7 @@ class MainWindow(QMainWindow):
             self.reader_panel,
             self.diary_panel,
             self.knowledge_panel,
+            self.graph_panel,
             self.settings_panel,
         ]
 
@@ -157,6 +160,8 @@ class MainWindow(QMainWindow):
         self.chat_panel.set_dao(dao)
         self.diary_panel.set_dao(dao)
         self.knowledge_panel.set_dao(dao)
+        if hasattr(self.graph_panel, "set_dao"):
+            self.graph_panel.set_dao(dao)
         # Build one shared vector store and hand it to the panels that index
         # knowledge-base content, so the embedding backend is instantiated once.
         try:
