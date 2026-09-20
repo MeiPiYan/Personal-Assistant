@@ -75,6 +75,15 @@
 - 测试：test_graph_state.py（15）+ test_graph_data.py（12）；全量回归 293 passed / 0 failed。
 - 顺带修复：icons.py 补 QRectF 导入与 "graph" 图标映射。
 
+## 2026-09-20 UI 重构 U-P0：正确性修复
+
+> 依据《UI面板重构规划书》U-P0 阶段实施，行为不变。全量回归 297 passed / 0 failed。
+
+- **统一日志**：新增 `src/ui/logging.py`（logger "ui"）；graph_panel / chat_panel / main_window 的 print 输出改为 logger.warning。
+- **任务引用管理**：新增 `src/ui/tasks.py`（spawn_ui，强引用+完成自清理）；9 个 UI 文件的 asyncio.ensure_future 全部替换，消除 fire-and-forget 任务被 GC 回收的风险。
+- **托盘菜单 GC 修复**：application.py 托盘 QMenu 由局部变量改为成员引用 `self._tray_menu`。
+- 全量回归 **297 passed / 0 failed**。
+
 ## 2026-09-20 隐患审计与修复（图谱 UI + 检索链）
 
 > 针对新增 G-P0 图谱模块与 P0–P2 检索链的专项审计，共确认 2 项崩溃级 + 3 项功能缺失 + 4 项性能/健壮性隐患，全部修复。提交 `46ccbd1`。

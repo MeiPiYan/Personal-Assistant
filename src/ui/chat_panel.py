@@ -4,6 +4,9 @@ from __future__ import annotations
 
 import asyncio
 
+from src.ui.logging import logger
+from src.ui.tasks import spawn_ui
+
 from PySide6.QtCore import Qt, Signal, Slot
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QTextEdit,
@@ -59,7 +62,7 @@ class ChatPanel(QWidget):
     def set_dao(self, dao: DAO) -> None:
         """Accept DAO instance and load persisted chat history."""
         self._dao = dao
-        asyncio.ensure_future(self._load_history())
+        spawn_ui(self._load_history())
 
     def set_vector_store(self, store) -> None:
         """Attach the shared vector store and enable RAG retrieval (P2)."""
@@ -69,7 +72,7 @@ class ChatPanel(QWidget):
 
             self._hybrid = HybridSearcher(vector_store=store)
         except Exception as e:
-            print(f"[ChatPanel] Failed to initialise hybrid search: {e}")
+            logger.warning(f"[ChatPanel] Failed to initialise hybrid search: {e}")
             self._hybrid = None
 
     # ------------------------------------------------------------------ #
@@ -232,7 +235,7 @@ class ChatPanel(QWidget):
         # Persist user message to database
         if self._dao:
             model = self.model_combo.currentData() or ""
-            asyncio.ensure_future(
+            spawn_ui(
                 self._dao.insert_chat_history("user", text, model=model)
             )
 
@@ -253,7 +256,7 @@ class ChatPanel(QWidget):
             chat_history = chat_history[-20:]
 
             # Retrieve RAG context and stream the response.
-            asyncio.ensure_future(self._dispatch(text, chat_history))
+            spawn_ui(self._dispatch(text, chat_history))
 
     async def _dispatch(self, text: str, chat_history: list[dict]) -> None:
         """Retrieve knowledge-base context, then stream the assistant reply."""
@@ -265,7 +268,7 @@ class ChatPanel(QWidget):
                     text, top_k=self._rag_top_k()
                 )
             except Exception as e:
-                print(f"[ChatPanel] RAG retrieval failed: {e}")
+                logger.warning(f"[ChatPanel] RAG retrieval failed: {e}")
                 context, sources = "", []
 
         self._pending_sources = sources
@@ -301,7 +304,7 @@ class ChatPanel(QWidget):
             # Persist assistant response to database
             if self._dao:
                 model = self.model_combo.currentData() or ""
-                asyncio.ensure_future(
+                spawn_ui(
                     self._dao.insert_chat_history("assistant", full_text, model=model)
                 )
         self._pending_sources = []
@@ -328,7 +331,7 @@ class ChatPanel(QWidget):
             self._welcome_label.show()
         # Also clear persisted history
         if self._dao:
-            asyncio.ensure_future(self._dao.clear_chat_history())
+            spawn_ui(self._dao.clear_chat_history())
 
     async def _load_history(self, limit: int = 50) -> None:
         """Load recent chat history from database and display it."""
@@ -352,4 +355,4 @@ class ChatPanel(QWidget):
                 self._messages.append({"role": role, "content": content})
                 self._add_message(content, is_user=is_user)
         except Exception as e:
-            print(f"[ChatPanel] Failed to load chat history: {e}")
+            logger.warning(f"[ChatPanel] Failed to load chat history: {e}")

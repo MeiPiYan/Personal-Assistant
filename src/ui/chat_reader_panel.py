@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import asyncio
 
+from src.ui.tasks import spawn_ui
+
 from PySide6.QtCore import Qt, Slot
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel,
@@ -236,7 +238,7 @@ class ChatReaderPanel(QWidget):
         self._qq_reader.error.connect(self._on_error)
         self._qq_reader.message_received.connect(self._on_message)
 
-        asyncio.ensure_future(self._start_qq())
+        spawn_ui(self._start_qq())
 
     async def _start_qq(self) -> None:
         # start() performs a synchronous HTTP probe that can block up to 10s;

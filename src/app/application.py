@@ -43,7 +43,10 @@ class Application:
         self._tray.setIcon(tray_icon())
         self._tray.setToolTip("AI Assistant")
 
-        menu = QMenu()
+        # Keep a member reference: a local QMenu can be garbage-collected and
+        # break the tray context menu at runtime.
+        self._tray_menu = QMenu()
+        menu = self._tray_menu
         show_action = QAction("显示主窗口", menu)
         show_action.triggered.connect(lambda: self.signals.show_main_window.emit())
         menu.addAction(show_action)

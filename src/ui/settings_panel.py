@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import asyncio
 
+from src.ui.tasks import spawn_ui
+
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel,
@@ -721,7 +723,7 @@ class SettingsPanel(QWidget):
             finally:
                 self.backup_now_btn.setEnabled(True)
 
-        asyncio.ensure_future(do_backup())
+        spawn_ui(do_backup())
 
     def _on_cleanup_backups(self) -> None:
         """Clean up old backups beyond the configured keep count."""
@@ -738,7 +740,7 @@ class SettingsPanel(QWidget):
             except Exception as e:
                 self._backup_status_label.setText(f"清理出错: {e}")
 
-        asyncio.ensure_future(do_cleanup())
+        spawn_ui(do_cleanup())
 
     def _load_backup_list(self) -> None:
         """Load and display the list of available backups."""
@@ -813,4 +815,4 @@ class SettingsPanel(QWidget):
             except Exception as e:
                 self._backup_status_label.setText(f"恢复出错: {e}")
 
-        asyncio.ensure_future(do_restore())
+        spawn_ui(do_restore())

@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import asyncio
 
+from src.ui.tasks import spawn_ui
+
 from PySide6.QtCore import Qt, Slot
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel,
@@ -302,7 +304,7 @@ class SearchPanel(QWidget):
         self._set_status("正在搜索网络...")
         self.search_btn.setEnabled(False)
         self._set_buttons_busy(True)
-        asyncio.ensure_future(self._do_web_search(query))
+        spawn_ui(self._do_web_search(query))
 
     def _on_local_search(self) -> None:
         """Local knowledge base search."""
@@ -313,7 +315,7 @@ class SearchPanel(QWidget):
         self._set_status("正在搜索本地知识库...")
         self.local_btn.setEnabled(False)
         self._set_buttons_busy(True)
-        asyncio.ensure_future(self._do_local_search(query))
+        spawn_ui(self._do_local_search(query))
 
     def _on_related_search(self) -> None:
         """AI-powered related query expansion."""
@@ -325,7 +327,7 @@ class SearchPanel(QWidget):
             return
         self._set_status("正在生成相关搜索建议...")
         self.related_btn.setEnabled(False)
-        asyncio.ensure_future(self._do_related_search(query))
+        spawn_ui(self._do_related_search(query))
 
     def _on_related_clicked(self, item: QListWidgetItem) -> None:
         """A related suggestion was clicked – run a web search for it."""

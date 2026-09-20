@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import asyncio
 
+from src.ui.tasks import spawn_ui
+
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel,
@@ -108,7 +110,7 @@ class DocumentPanel(QWidget):
         self._vector_store = store
 
     def _on_files_dropped(self, files: list[str]) -> None:
-        asyncio.ensure_future(self._parse_files(files))
+        spawn_ui(self._parse_files(files))
 
     async def _parse_files(self, files: list[str]) -> None:
         from src.document.parser import DocumentParser
@@ -130,7 +132,7 @@ class DocumentPanel(QWidget):
         url = self.url_input.text().strip()
         if not url:
             return
-        asyncio.ensure_future(self._fetch_url(url))
+        spawn_ui(self._fetch_url(url))
 
     async def _fetch_url(self, url: str) -> None:
         import trafilatura
@@ -166,7 +168,7 @@ class DocumentPanel(QWidget):
     def _on_index(self) -> None:
         if not self._current_text:
             return
-        asyncio.ensure_future(self._do_index())
+        spawn_ui(self._do_index())
 
     async def _do_index(self) -> None:
         title = self.url_input.text().strip() or "手动文档"
@@ -184,7 +186,7 @@ class DocumentPanel(QWidget):
         self.summarize_btn.setText("总结中...")
         self.summary_output.setPlainText("正在生成总结，请稍候...")
         # Schedule the async summarization
-        asyncio.ensure_future(self._do_summarize())
+        spawn_ui(self._do_summarize())
 
     async def _do_summarize(self) -> None:
         try:

@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import asyncio
+
+from src.ui.tasks import spawn_ui
 import json as _json
 
 from PySide6.QtCore import Qt, Signal
@@ -32,7 +34,7 @@ class KnowledgePanel(QWidget):
     def set_dao(self, dao: DAO) -> None:
         self._dao = dao
         self._init_vector_store()
-        asyncio.ensure_future(self._load_browse())
+        spawn_ui(self._load_browse())
 
     def set_vector_store(self, store) -> None:
         """Use a shared vector store (built once by MainWindow) instead of a
@@ -182,7 +184,7 @@ class KnowledgePanel(QWidget):
             category=category,
             tags=tags,
         )
-        asyncio.ensure_future(self._save_knowledge(item))
+        spawn_ui(self._save_knowledge(item))
 
     async def _save_knowledge(self, item: KnowledgeItem) -> None:
         try:
@@ -214,7 +216,7 @@ class KnowledgePanel(QWidget):
         if self._dao is None:
             self._show_status("数据库未就绪")
             return
-        asyncio.ensure_future(self._do_search(query))
+        spawn_ui(self._do_search(query))
 
     async def _do_search(self, query: str) -> None:
         try:
@@ -265,7 +267,7 @@ class KnowledgePanel(QWidget):
 
     def _on_clear_search(self) -> None:
         self.search_input.clear()
-        asyncio.ensure_future(self._load_browse())
+        spawn_ui(self._load_browse())
 
     async def _load_browse(self, limit: int = 30) -> None:
         if self._dao is None:

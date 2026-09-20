@@ -8,6 +8,9 @@ any bubble to emit a navigation request. Rendering via QGraphicsView.
 from __future__ import annotations
 
 import asyncio
+
+from src.ui.logging import logger
+from src.ui.tasks import spawn_ui
 import math
 
 from PySide6.QtCore import Qt, Signal
@@ -57,7 +60,7 @@ class GraphPanel(QWidget):
                 related_provider=self._provider.related_ids
             )
         except Exception as e:
-            print(f"[GraphPanel] init failed: {e}")
+            logger.warning(f"[GraphPanel] init failed: {e}")
             self._provider = None
             self._machine = None
 
@@ -194,7 +197,7 @@ class GraphPanel(QWidget):
             self._pending_node = node_id
             return
         self._pending_node = None
-        self._activation_task = asyncio.ensure_future(self._run_activation(node_id))
+        self._activation_task = spawn_ui(self._run_activation(node_id))
 
     async def _run_activation(self, node_id: int) -> None:
         try:
@@ -207,7 +210,7 @@ class GraphPanel(QWidget):
                 nid = self._pending_node
                 self._pending_node = None
         except Exception as e:
-            print(f"[GraphPanel] activation failed: {e}")
+            logger.warning(f"[GraphPanel] activation failed: {e}")
         finally:
             self._activation_task = None
 

@@ -3,6 +3,9 @@ from __future__ import annotations
 
 import asyncio
 
+from src.ui.logging import logger
+from src.ui.tasks import spawn_ui
+
 from PySide6.QtCore import Qt, Signal, QSize
 from PySide6.QtGui import QIcon, QFont, QPainter, QColor, QPixmap
 from PySide6.QtWidgets import (
@@ -203,11 +206,11 @@ class MainWindow(QMainWindow):
     def _on_graph_enter_requested(self, chunk_id: int) -> None:
         """Switch to the graph panel and focus it on ``chunk_id`` (T1 entry)."""
         self._switch_page(self._panels.index(self.graph_panel))
-        asyncio.ensure_future(self.graph_panel.enter_from_search(chunk_id))
+        spawn_ui(self.graph_panel.enter_from_search(chunk_id))
 
     def _on_graph_node_double_clicked(self, chunk_id: int) -> None:
         """Open the source content of a graph node (T6 navigation)."""
-        asyncio.ensure_future(self._open_chunk_source(chunk_id))
+        spawn_ui(self._open_chunk_source(chunk_id))
 
     async def _open_chunk_source(self, chunk_id: int) -> None:
         if self._dao is None:
@@ -228,7 +231,7 @@ class MainWindow(QMainWindow):
                 f"已定位到来源：{title or f'chunk #{chunk_id}'}", 5000
             )
         except Exception as e:
-            print(f"[MainWindow] open chunk source failed: {e}")
+            logger.warning(f"[MainWindow] open chunk source failed: {e}")
 
     def _setup_status_bar(self) -> None:
         status = QStatusBar()

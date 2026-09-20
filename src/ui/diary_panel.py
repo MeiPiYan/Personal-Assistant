@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import asyncio
 
+from src.ui.tasks import spawn_ui
+
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel,
@@ -28,7 +30,7 @@ class DiaryPanel(QWidget):
 
     def set_dao(self, dao: DAO) -> None:
         self._dao = dao
-        asyncio.ensure_future(self._load_history())
+        spawn_ui(self._load_history())
 
     def set_ai_engine(self, engine) -> None:
         self._ai_engine = engine
@@ -126,7 +128,7 @@ class DiaryPanel(QWidget):
         self.refresh_btn = QPushButton("刷新")
         self.refresh_btn.setObjectName("secondaryBtn")
         self.refresh_btn.setFixedWidth(64)
-        self.refresh_btn.clicked.connect(lambda: asyncio.ensure_future(self._load_history()))
+        self.refresh_btn.clicked.connect(lambda: spawn_ui(self._load_history()))
         filter_row.addWidget(self.refresh_btn)
         layout.addLayout(filter_row)
 
@@ -157,7 +159,7 @@ class DiaryPanel(QWidget):
         tags = [t.strip() for t in tags_raw.split(",") if t.strip()] if tags_raw else []
 
         entry = DiaryEntry(content=content, mood=mood, tags=tags)
-        asyncio.ensure_future(self._save_entry(entry))
+        spawn_ui(self._save_entry(entry))
 
     async def _save_entry(self, entry: DiaryEntry) -> None:
         try:
@@ -180,7 +182,7 @@ class DiaryPanel(QWidget):
 
         self.ai_assist_btn.setEnabled(False)
         self.ai_assist_btn.setText("润色中...")
-        asyncio.ensure_future(self._do_ai_assist(content))
+        spawn_ui(self._do_ai_assist(content))
 
     async def _do_ai_assist(self, original_text: str) -> None:
         try:
@@ -209,11 +211,11 @@ class DiaryPanel(QWidget):
     def _on_filter(self) -> None:
         query = self.filter_input.text().strip()
         if not query:
-            asyncio.ensure_future(self._load_history())
+            spawn_ui(self._load_history())
             return
         if self._dao is None:
             return
-        asyncio.ensure_future(self._search_history(query))
+        spawn_ui(self._search_history(query))
 
     # -- History --------------------------------------------------------------
 
