@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
     QTableWidget, QTableWidgetItem, QHeaderView, QMessageBox,
 )
 
+from .base_panel import ThemedPanel
 from .styles import ThemeManager
 from ..ai.models import (
     CLOUD_PROVIDERS, PROVIDER_NAMES, PROVIDER_MODELS,
@@ -22,7 +23,7 @@ from ..ai.models import (
 )
 
 
-class SettingsPanel(QWidget):
+class SettingsPanel(ThemedPanel):
     # Signal emitted when settings are saved
     settings_saved = Signal()
 
@@ -31,7 +32,6 @@ class SettingsPanel(QWidget):
         self.app = app
         self._backup_mgr = None
         self._setup_ui()
-        ThemeManager.register_panel(self)
 
     def _apply_theme(self) -> None:
         c = ThemeManager.get_colors()

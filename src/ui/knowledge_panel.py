@@ -12,12 +12,13 @@ from PySide6.QtWidgets import (
     QLineEdit, QPushButton, QTextEdit, QScrollArea, QComboBox, QFrame,
 )
 
+from .base_panel import ThemedPanel
 from .styles import ThemeManager
 from src.storage.dao import DAO
 from src.storage.models import KnowledgeItem
 
 
-class KnowledgePanel(QWidget):
+class KnowledgePanel(ThemedPanel):
     # Emitted when the user asks to explore a search-result chunk in the graph.
     graph_enter_requested = Signal(int)
 
@@ -27,7 +28,6 @@ class KnowledgePanel(QWidget):
         self._dao: DAO | None = None
         self._vector_store = None  # lazily built once the DAO is ready
         self._setup_ui()
-        ThemeManager.register_panel(self)
 
     # -- Public setter (called after DB init) ---------------------------------
 

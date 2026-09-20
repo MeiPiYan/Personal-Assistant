@@ -13,13 +13,14 @@ from PySide6.QtWidgets import (
     QListWidget, QListWidgetItem, QSizePolicy,
 )
 
+from .base_panel import ThemedPanel
 from .styles import ThemeManager
 from ..search.web_search import WebSearcher
 from ..search.local_search import LocalSearcher
 from ..search.related import RelatedSearcher
 
 
-class SearchPanel(QWidget):
+class SearchPanel(ThemedPanel):
     def __init__(self, app=None, parent=None):
         super().__init__(parent)
         self.app = app
@@ -31,7 +32,6 @@ class SearchPanel(QWidget):
         self._related_searcher = RelatedSearcher()
 
         self._setup_ui()
-        ThemeManager.register_panel(self)
 
     def _apply_theme(self) -> None:
         c = ThemeManager.get_colors()

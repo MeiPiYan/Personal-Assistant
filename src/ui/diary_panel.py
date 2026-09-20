@@ -12,19 +12,19 @@ from PySide6.QtWidgets import (
     QTextEdit, QPushButton, QScrollArea, QLineEdit, QFrame,
 )
 
+from .base_panel import ThemedPanel
 from .styles import ThemeManager
 from src.storage.dao import DAO
 from src.storage.models import DiaryEntry
 
 
-class DiaryPanel(QWidget):
+class DiaryPanel(ThemedPanel):
     def __init__(self, app=None, parent=None):
         super().__init__(parent)
         self.app = app
         self._dao: DAO | None = None
         self._ai_engine = None
         self._setup_ui()
-        ThemeManager.register_panel(self)
 
     # -- Public setter (called after DB init) ---------------------------------
 

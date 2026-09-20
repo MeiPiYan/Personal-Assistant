@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (
     QSplitter, QFrame, QLineEdit,
 )
 
+from .base_panel import ThemedPanel
 from .styles import ThemeManager
 from .widgets.message_bubble import MessageBubble
 from ..chat_reader.wechat_reader import WeChatReader
@@ -21,7 +22,7 @@ from ..storage.models import ChatMessage
 from ..app.config import Config
 
 
-class ChatReaderPanel(QWidget):
+class ChatReaderPanel(ThemedPanel):
     def __init__(self, app=None, parent=None):
         super().__init__(parent)
         self.app = app
@@ -30,7 +31,6 @@ class ChatReaderPanel(QWidget):
         self._selected_sessions: list[str] = []
         self._monitoring = False
         self._setup_ui()
-        ThemeManager.register_panel(self)
 
     def _apply_theme(self) -> None:
         c = ThemeManager.get_colors()

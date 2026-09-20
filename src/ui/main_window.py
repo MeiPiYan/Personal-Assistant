@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (
     QPushButton, QFrame, QSizePolicy, QSpacerItem, QToolButton,
 )
 
+from .base_panel import ThemedMainWindow
 from .styles import ThemeManager
 from .chat_panel import ChatPanel
 from .document_panel import DocumentPanel
@@ -42,7 +43,7 @@ def _make_nav_button(icon: QIcon, label: str, tooltip: str) -> QToolButton:
     return btn
 
 
-class MainWindow(QMainWindow):
+class MainWindow(ThemedMainWindow):
     def __init__(self, app=None):
         super().__init__()
         self.app = app
@@ -158,9 +159,6 @@ class MainWindow(QMainWindow):
 
         # Initial load of models for chat panel
         self.chat_panel.load_models_from_config()
-
-        # Register main window for theme refresh
-        ThemeManager.register_panel(self)
 
     def _apply_theme(self) -> None:
         """Update main window inline styles when theme changes."""

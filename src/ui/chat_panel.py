@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtGui import QFont
 
+from .base_panel import ThemedPanel
 from .styles import ThemeManager
 from .widgets.message_bubble import MessageBubble
 from .widgets.streaming_text import StreamingTextWidget
@@ -26,7 +27,7 @@ from ..ai.prompts import build_chat_messages
 from ..storage.dao import DAO
 
 
-class ChatPanel(QWidget):
+class ChatPanel(ThemedPanel):
     """AI chat interface with streaming responses."""
 
     def __init__(self, app=None, parent=None):
@@ -39,7 +40,6 @@ class ChatPanel(QWidget):
         self._pending_sources: list[dict] = []
         self._messages: list[dict] = []
         self._setup_ui()
-        ThemeManager.register_panel(self)
 
     def _apply_theme(self) -> None:
         c = ThemeManager.get_colors()

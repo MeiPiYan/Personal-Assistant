@@ -132,3 +132,8 @@
 
 ### 其他
 - 依赖：pyproject.toml 新增 sqlite-vec / numpy；移除未使用的 litellm。
+
+## 2026-09-20 U-P1 收尾（完成）
+- 删除 chat_reader_panel.py / settings_panel.py 中残留的 ThemeManager.register_panel(self)，主题注册统一收口到 src/ui/base_panel.py 的 ThemedPanel/ThemedMainWindow
+- 完整性核验：compileall 通过；register_panel 仅存在于 base_panel.py；7 个面板继承 ThemedPanel（document_panel 保持 QWidget 为例外）
+- 全量回归：297 passed（pytest 9.1.1 + PySide6, QT_QPA_PLATFORM=offscreen）

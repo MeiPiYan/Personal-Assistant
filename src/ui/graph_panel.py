@@ -19,12 +19,13 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QGraphicsScene, QGraphicsView,
 )
 
+from .base_panel import ThemedPanel
 from .styles import ThemeManager
 from .widgets.graph_node import GraphNodeItem
 from .widgets.graph_edge import GraphEdgeItem
 
 
-class GraphPanel(QWidget):
+class GraphPanel(ThemedPanel):
     """Three-level knowledge bubble graph."""
 
     node_double_clicked = Signal(int)
@@ -41,7 +42,6 @@ class GraphPanel(QWidget):
         self._activation_task: asyncio.Task | None = None
         self._pending_node: int | None = None
         self._setup_ui()
-        ThemeManager.register_panel(self)
 
     # ------------------------------------------------------------------ #
     # wiring
