@@ -11,7 +11,7 @@ import asyncio
 import math
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QBrush, QColor
+from PySide6.QtGui import QBrush, QColor, QPainter
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QGraphicsScene, QGraphicsView,
 )
@@ -103,7 +103,7 @@ class GraphPanel(QWidget):
 
         self._scene = QGraphicsScene(self)
         self._view = QGraphicsView(self._scene, self)
-        self._view.setRenderHint(QGraphicsView.RenderHint.Antialiasing, True)
+        self._view.setRenderHint(QPainter.Antialiasing, True)
         self._view.setDragMode(QGraphicsView.ScrollHandDrag)
         self._view.setBackgroundBrush(self._bg_brush())
         layout.addWidget(self._view, 1)

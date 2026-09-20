@@ -10,7 +10,7 @@ from __future__ import annotations
 import math
 from pathlib import Path
 
-from PySide6.QtCore import Qt, QRect, QPointF, QLineF, QSize
+from PySide6.QtCore import Qt, QRect, QRectF, QPointF, QLineF, QSize
 from PySide6.QtGui import (
     QIcon, QPixmap, QPainter, QColor, QPen, QBrush, QFont,
     QPolygonF, QPainterPath,
@@ -243,6 +243,7 @@ _PAINTERS = {
     "monitor": _paint_monitor,
     "diary": _paint_diary,
     "knowledge": _paint_knowledge,
+    "graph": _paint_knowledge,
     "settings": _paint_settings,
     "tray": _paint_tray,
 }

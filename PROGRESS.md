@@ -63,6 +63,18 @@
 - [x] （可选）`git filter-repo` 清洗历史 + force-push —— 2026-09-13 完成：全部 8 个提交已重写脱敏（泄漏片段 → `***REDACTED***`）并强推 origin/main。重写前完整备份：`D:\project\Personal-Assistant-backup-before-rewrite.bundle`。注意 GitHub 服务器端旧提交短期内可能仍可通过旧 SHA 直链访问。
 - [ ] 新 key 更新到 `config/settings.yaml`（已 gitignore，不会再入库）。
 
+## 2026-09-20 知识图谱气泡可视化 G-P0
+
+> 规划文档：`知识图谱气泡可视化规划书.md`。选中驱动的三级气泡图谱（0级绿=当前选中 / -1级红=上一步 / 1级蓝=关联知识），QGraphicsView 自绘，无新增重依赖。
+
+- 新增 `src/graph/graph_state.py`：三级状态机（T1 检索进入 / T2 选中1级 / T3 回退 / T4 自选无操作 / T5 空关联 / T6 双击不改状态），剔除自身与回指、去重、不变量校验。
+- 新增 `src/graph/graph_data.py`：1级判定（余弦相似度 ≥ 阈值，top-k 截断，float32 BLOB 解码）+ 离线关键词标签抽取（TF 兜底）。
+- 新增 `src/ui/graph_panel.py`、`src/ui/widgets/graph_node.py`（悬停防抖 250ms / 单击选中 / 双击信号）、`graph_edge.py`（半透明连线，相似度映射不透明度）。
+- `main_window` 注册图谱面板并注入 DAO；`icons.py` NAV_ICONS 新增"图谱"入口。
+- 配置：`ai.graph`（level1_top_k=8 / similarity_threshold=0.35 / hover_debounce_ms=250）。
+- 测试：test_graph_state.py（15）+ test_graph_data.py（12）；全量回归 293 passed / 0 failed。
+- 顺带修复：icons.py 补 QRectF 导入与 "graph" 图标映射。
+
 ## 2026-09-18 向量检索与知识库改造（P0–P2）
 
 > 方案文档：`向量检索与知识库改造方案.md`。技术路线：sqlite-vec 向量检索 + FTS5 关键词检索 + RRF 混合融合 + RAG 注入对话。Embedding 默认 hashing 离线后端（零依赖、可运行），可切换 local(bge) / ollama / OpenAI 兼容。
