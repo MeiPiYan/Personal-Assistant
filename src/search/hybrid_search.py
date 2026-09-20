@@ -85,7 +85,8 @@ class HybridSearcher:
     async def _lexical(self, query: str, limit: int) -> list[dict]:
         try:
             rows = await self.dao.search_chunks_fts(query, limit=limit)
-        except Exception:
+        except Exception as e:
+            print(f"[HybridSearcher] lexical search failed: {e}")
             return []
         out = []
         for r in rows:
@@ -101,7 +102,8 @@ class HybridSearcher:
     async def _semantic(self, query: str, limit: int) -> list[dict]:
         try:
             rows = await self.vector_store.search(query, top_k=limit)
-        except Exception:
+        except Exception as e:
+            print(f"[HybridSearcher] semantic search failed: {e}")
             return []
         return [
             {

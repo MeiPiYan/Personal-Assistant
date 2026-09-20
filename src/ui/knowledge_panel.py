@@ -4,7 +4,7 @@ from __future__ import annotations
 import asyncio
 import json as _json
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel,
     QLineEdit, QPushButton, QTextEdit, QScrollArea, QComboBox, QFrame,
@@ -16,6 +16,9 @@ from src.storage.models import KnowledgeItem
 
 
 class KnowledgePanel(QWidget):
+    # Emitted when the user asks to explore a search-result chunk in the graph.
+    graph_enter_requested = Signal(int)
+
     def __init__(self, app=None, parent=None):
         super().__init__(parent)
         self.app = app
@@ -256,6 +259,7 @@ class KnowledgePanel(QWidget):
                 "source_url": "",
                 "created_at": "",
                 "_score": h.get("score"),
+                "_chunk_id": h.get("chunk_id"),
             })
         return items
 
@@ -354,9 +358,33 @@ class KnowledgePanel(QWidget):
             except Exception:
                 pass
 
+        # Graph entry (G-P0): vector search hits carry their chunk id.
+        chunk_id = row.get("_chunk_id")
+        if chunk_id is not None:
+            graph_btn = QPushButton("在图谱中探索")
+            graph_btn.setObjectName("secondaryBtn")
+            graph_btn.setFixedWidth(110)
+            graph_btn.clicked.connect(
+                lambda checked=False, cid=chunk_id: self.graph_enter_requested.emit(cid)
+            )
+            card_layout.addWidget(graph_btn)
+
         return card
 
     # -- Helpers ---------------------------------------------------------------
+
+    def focus_content(self, content: str, title: str = "") -> None:
+        """Show a single source chunk as a card (graph double-click navigation)."""
+        item = {
+            "title": title or "图谱来源",
+            "content": content or "",
+            "category": "",
+            "tags": "",
+            "source_url": "",
+            "created_at": "",
+        }
+        self._populate_browse([item])
+        self._show_status("已定位图谱节点的来源内容")
 
     def _show_status(self, text: str) -> None:
         self.status_label.setText(text)

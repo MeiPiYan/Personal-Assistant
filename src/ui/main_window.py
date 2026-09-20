@@ -1,6 +1,8 @@
 """Main window with sidebar navigation."""
 from __future__ import annotations
 
+import asyncio
+
 from PySide6.QtCore import Qt, Signal, QSize
 from PySide6.QtGui import QIcon, QFont, QPainter, QColor, QPixmap
 from PySide6.QtWidgets import (
@@ -41,6 +43,7 @@ class MainWindow(QMainWindow):
     def __init__(self, app=None):
         super().__init__()
         self.app = app
+        self._dao = None
         self._vector_store = None  # shared vector KB store (P1)
         self.setWindowTitle("AI Assistant")
         self.setMinimumSize(860, 560)
@@ -139,6 +142,12 @@ class MainWindow(QMainWindow):
         # Wire settings saved signal to refresh chat panel
         self.settings_panel.settings_saved.connect(self.chat_panel.load_models_from_config)
 
+        # Graph navigation wiring (G-P0): double-click a bubble to open its
+        # source content; knowledge search results can enter the graph (T1).
+        self.graph_panel.node_double_clicked.connect(self._on_graph_node_double_clicked)
+        if hasattr(self.knowledge_panel, "graph_enter_requested"):
+            self.knowledge_panel.graph_enter_requested.connect(self._on_graph_enter_requested)
+
         root_layout.addWidget(content_widget, 1)
 
         # Default to chat page
@@ -157,6 +166,7 @@ class MainWindow(QMainWindow):
 
     def set_dao(self, dao: DAO) -> None:
         """Pass the DAO instance to panels that need database access."""
+        self._dao = dao
         self.chat_panel.set_dao(dao)
         self.diary_panel.set_dao(dao)
         self.knowledge_panel.set_dao(dao)
@@ -186,6 +196,39 @@ class MainWindow(QMainWindow):
         self._stack.setCurrentIndex(index)
         for i, btn in enumerate(self._nav_buttons):
             btn.setChecked(i == index)
+
+    # ------------------------------------------------------------------ #
+    # Knowledge-graph navigation (G-P0)
+    # ------------------------------------------------------------------ #
+    def _on_graph_enter_requested(self, chunk_id: int) -> None:
+        """Switch to the graph panel and focus it on ``chunk_id`` (T1 entry)."""
+        self._switch_page(self._panels.index(self.graph_panel))
+        asyncio.ensure_future(self.graph_panel.enter_from_search(chunk_id))
+
+    def _on_graph_node_double_clicked(self, chunk_id: int) -> None:
+        """Open the source content of a graph node (T6 navigation)."""
+        asyncio.ensure_future(self._open_chunk_source(chunk_id))
+
+    async def _open_chunk_source(self, chunk_id: int) -> None:
+        if self._dao is None:
+            return
+        try:
+            chunk = await self._dao.get_chunk(chunk_id)
+            if not chunk:
+                return
+            title = ""
+            doc_id = chunk.get("doc_id")
+            if doc_id is not None:
+                doc = await self._dao.get_document(doc_id)
+                title = (doc or {}).get("title", "") or ""
+            self._switch_page(self._panels.index(self.knowledge_panel))
+            if hasattr(self.knowledge_panel, "focus_content"):
+                self.knowledge_panel.focus_content(chunk.get("content", ""), title=title)
+            self.statusBar().showMessage(
+                f"已定位到来源：{title or f'chunk #{chunk_id}'}", 5000
+            )
+        except Exception as e:
+            print(f"[MainWindow] open chunk source failed: {e}")
 
     def _setup_status_bar(self) -> None:
         status = QStatusBar()

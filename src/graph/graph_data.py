@@ -63,13 +63,19 @@ class GraphDataProvider:
     # ------------------------------------------------------------------
     async def get_node(self, chunk_id: int) -> dict | None:
         """Return node metadata {id, doc_id, content, label} or None."""
-        rows = await self.dao.get_chunks(limit=100000)
-        for r in rows:
-            if r.get("id") == chunk_id:
-                out = dict(r)
-                out["label"] = extract_label(out.get("content", ""))
-                return out
-        return None
+        # Point query (O(1) by primary key). The previous full-table scan made
+        # every rebuild cost (1 + top_k) passes over the whole chunks table.
+        getter = getattr(self.dao, "get_chunk", None)
+        if getter is not None:
+            r = await getter(chunk_id)
+        else:  # defensive fallback for stub DAOs without get_chunk
+            rows = await self.dao.get_chunks(limit=100000)
+            r = next((row for row in rows if row.get("id") == chunk_id), None)
+        if r is None:
+            return None
+        out = dict(r)
+        out["label"] = extract_label(out.get("content", ""))
+        return out
 
     async def related_chunks(self, chunk_id: int) -> list[dict]:
         """Level-1 candidates for a chunk: cosine >= threshold, top-k.

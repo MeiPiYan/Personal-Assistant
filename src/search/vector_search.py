@@ -95,6 +95,12 @@ class VectorStore:
             if existing:
                 return {"doc_id": existing["id"], "chunks": 0, "deduped": True}
 
+        # Chunk *before* inserting the document, so unchunkable (effectively
+        # empty) text never leaves an orphan row in ``documents``.
+        pieces = self.chunker.chunk(text)
+        if not pieces:
+            return {"doc_id": None, "chunks": 0, "deduped": False}
+
         doc_id = await self.dao.insert_document(
             title=title,
             source_path=source_path,
@@ -102,10 +108,6 @@ class VectorStore:
             content_hash=content_hash,
             meta_json=json.dumps(meta or {}, ensure_ascii=False),
         )
-
-        pieces = self.chunker.chunk(text)
-        if not pieces:
-            return {"doc_id": doc_id, "chunks": 0, "deduped": False}
 
         vectors = await self.backend.embed(pieces)
         chunk_rows = []

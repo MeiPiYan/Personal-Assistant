@@ -167,6 +167,13 @@ class DAO:
         row = await cursor.fetchone()
         return dict(row) if row else None
 
+    async def get_document(self, doc_id: int) -> dict | None:
+        cursor = await self.db.connection.execute(
+            "SELECT * FROM documents WHERE id = ?", (doc_id,)
+        )
+        row = await cursor.fetchone()
+        return dict(row) if row else None
+
     async def insert_document(self, title: str, source_path: str,
                               source_type: str, content_hash: str,
                               meta_json: str = "{}") -> int:
@@ -222,6 +229,14 @@ class DAO:
                 )
         await conn.commit()
         return ids
+
+    async def get_chunk(self, chunk_id: int) -> dict | None:
+        """Point query for a single chunk by primary key (graph nodes)."""
+        cursor = await self.db.connection.execute(
+            "SELECT * FROM chunks WHERE id = ?", (chunk_id,)
+        )
+        row = await cursor.fetchone()
+        return dict(row) if row else None
 
     async def get_chunks(self, doc_id: int | None = None,
                          limit: int = 5000) -> list[dict]:

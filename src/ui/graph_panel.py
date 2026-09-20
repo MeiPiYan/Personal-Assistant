@@ -10,7 +10,7 @@ from __future__ import annotations
 import asyncio
 import math
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QBrush, QColor, QPainter
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QGraphicsScene, QGraphicsView,
@@ -24,7 +24,7 @@ from .widgets.graph_edge import GraphEdgeItem
 class GraphPanel(QWidget):
     """Three-level knowledge bubble graph."""
 
-    node_double_clicked = __import__("PySide6.QtCore", fromlist=["Signal"]).Signal(int)
+    node_double_clicked = Signal(int)
 
     def __init__(self, app=None, parent=None):
         super().__init__(parent)
@@ -35,6 +35,8 @@ class GraphPanel(QWidget):
         self._nodes: dict[int, GraphNodeItem] = {}
         self._edges: list[GraphEdgeItem] = []
         self._label_cache: dict[int, str] = {}
+        self._activation_task: asyncio.Task | None = None
+        self._pending_node: int | None = None
         self._setup_ui()
         ThemeManager.register_panel(self)
 
@@ -186,12 +188,28 @@ class GraphPanel(QWidget):
     def _on_node_activated(self, node_id: int) -> None:
         if self._machine is None:
             return
+        # Re-entrancy guard: rapid hover/click across several nodes coalesces
+        # into the latest request instead of queueing one rebuild per node.
+        if self._activation_task is not None and not self._activation_task.done():
+            self._pending_node = node_id
+            return
+        self._pending_node = None
+        self._activation_task = asyncio.ensure_future(self._run_activation(node_id))
 
-        async def run():
-            await self._machine.select(node_id)
-            await self._rebuild()
-
-        asyncio.ensure_future(run())
+    async def _run_activation(self, node_id: int) -> None:
+        try:
+            nid = node_id
+            while True:
+                await self._machine.select(nid)
+                await self._rebuild()
+                if self._pending_node is None:
+                    break
+                nid = self._pending_node
+                self._pending_node = None
+        except Exception as e:
+            print(f"[GraphPanel] activation failed: {e}")
+        finally:
+            self._activation_task = None
 
     def _on_node_double_clicked(self, node_id: int) -> None:
         self.node_double_clicked.emit(node_id)

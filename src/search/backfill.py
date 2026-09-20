@@ -144,7 +144,11 @@ class BackfillService:
         for _ in range(retries + 1):
             try:
                 res = await self.vector_store.index_knowledge_item(item)
-                return res.get("chunks", 0) > 0
+                if res.get("deduped"):
+                    return False
+                # chunks==0 without dedupe means the text could not be chunked;
+                # report it as failed instead of mis-counting it as deduped.
+                return True if res.get("chunks", 0) > 0 else None
             except Exception as e:  # noqa: BLE001
                 last_exc = e
                 await asyncio.sleep(0.05)
@@ -157,7 +161,9 @@ class BackfillService:
                 res = await self.vector_store.index_text(
                     text, title=title, source_type=source_type
                 )
-                return res.get("chunks", 0) > 0
+                if res.get("deduped"):
+                    return False
+                return True if res.get("chunks", 0) > 0 else None
             except Exception as e:  # noqa: BLE001
                 last_exc = e
                 await asyncio.sleep(0.05)
